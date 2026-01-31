@@ -176,10 +176,11 @@ export async function GET(
 
               for (const prop of props.data) {
                 // V2 API uses player_id directly, not player.id
-                const playerId = String((prop as any).player_id);
+                const propData = prop as { player_id?: number; line_value?: number; prop_type: string; line?: number };
+                const playerId = String(propData.player_id);
                 const statType = statTypeMap[prop.prop_type] || prop.prop_type;
                 // V2 API uses line_value instead of line
-                const lineValue = parseFloat((prop as any).line_value) || prop.line || 0;
+                const lineValue = parseFloat(String(propData.line_value)) || prop.line || 0;
 
                 if (!apiLinesMap.has(playerId)) {
                   apiLinesMap.set(playerId, new Map());

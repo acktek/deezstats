@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
-import { db, watchlist, players } from "@/lib/db";
+import { db, watchlist } from "@/lib/db";
 import { eq, and, desc } from "drizzle-orm";
 
 export async function GET() {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bdlClient } from "@/lib/balldontlie";
 import { db, players, playerLines, games } from "@/lib/db";
 import { calculateEdgeScore } from "@/lib/algorithm";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 

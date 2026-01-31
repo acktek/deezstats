@@ -89,15 +89,6 @@ export function AlertsPanel({ alerts, onDismiss, className }: AlertsPanelProps) 
     }
   }, [alerts, seenAlertIds, soundEnabled, notificationsEnabled, toast]);
 
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
   const sortedAlerts = [...alerts].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );

@@ -18,7 +18,7 @@ export function SyncButton() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
+  const [, setCronJobs] = useState<CronJob[]>([]);
   const [cronStatus, setCronStatus] = useState<"loading" | "active" | "inactive">("loading");
 
   useEffect(() => {
