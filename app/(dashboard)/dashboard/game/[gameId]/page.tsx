@@ -229,7 +229,7 @@ export default function GameMonitoringPage() {
       {data.game.status === "scheduled" && data.players.length === 0 && (
         <div className="text-center py-12 border rounded-lg bg-muted/20">
           <p className="text-muted-foreground text-lg mb-2">
-            Game hasn't started yet
+            Game has not started yet
           </p>
           <p className="text-muted-foreground text-sm">
             Player stats and edges will appear once the game begins
