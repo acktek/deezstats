@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Gentleman's Lounge Theme - Cream/Light Mode */
+    --background: 40 30% 96%;
+    --foreground: 25 30% 15%;
+
+    --card: 40 25% 93%;
+    --card-foreground: 25 30% 15%;
+
+    --popover: 40 25% 95%;
+    --popover-foreground: 25 30% 15%;
+
+    --primary: 145 33% 36%;
+    --primary-foreground: 40 30% 96%;
+
+    --secondary: 30 25% 85%;
+    --secondary-foreground: 25 35% 25%;
+
+    --muted: 35 20% 88%;
+    --muted-foreground: 25 15% 45%;
+
+    --accent: 38 65% 50%;
+    --accent-foreground: 25 30% 15%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 20% 82%;
+    --input: 35 20% 82%;
+    --ring: 145 33% 36%;
+
+    --radius: 0.5rem;
+
+    /* Charts */
+    --chart-1: 145 33% 36%;
+    --chart-2: 38 65% 50%;
+    --chart-3: 25 50% 40%;
+    --chart-4: 30 25% 55%;
+    --chart-5: 35 20% 70%;
+  }
+
+  .dark {
+    /* Gentleman's Lounge Theme - Dark/Leather Mode */
+    --background: 20 25% 9%;
+    --foreground: 40 20% 88%;
+
+    --card: 20 20% 12%;
+    --card-foreground: 40 20% 88%;
+
+    --popover: 20 22% 11%;
+    --popover-foreground: 40 20% 88%;
+
+    --primary: 145 35% 42%;
+    --primary-foreground: 20 25% 9%;
+
+    --secondary: 25 20% 18%;
+    --secondary-foreground: 40 20% 85%;
+
+    --muted: 25 15% 20%;
+    --muted-foreground: 35 15% 55%;
+
+    --accent: 38 70% 55%;
+    --accent-foreground: 20 25% 9%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 25 15% 20%;
+    --input: 25 15% 20%;
+    --ring: 145 35% 42%;
+
+    /* Charts */
+    --chart-1: 145 35% 50%;
+    --chart-2: 38 70% 55%;
+    --chart-3: 30 45% 50%;
+    --chart-4: 25 30% 45%;
+    --chart-5: 35 20% 35%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar for the gentleman's theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted/50;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer components {
+  /* Edge score badge variants */
+  .edge-none {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  .edge-monitor {
+    @apply bg-whiskey-100 text-whiskey-700 dark:bg-whiskey-900/50 dark:text-whiskey-300;
+  }
+
+  .edge-good {
+    @apply bg-forest-100 text-forest-700 dark:bg-forest-900/50 dark:text-forest-300;
+  }
+
+  .edge-strong {
+    @apply bg-gold-100 text-gold-700 dark:bg-gold-900/50 dark:text-gold-300 ring-1 ring-gold-400/50;
+  }
+
+  /* Card with subtle leather texture feel */
+  .card-leather {
+    @apply bg-card border border-border shadow-sm;
+    background-image: linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.02) 50%,
+      transparent 100%
+    );
+  }
+
+  /* Gold accent line */
+  .gold-accent {
+    @apply border-l-2 border-gold-400 pl-4;
+  }
+
+  /* Subtle pattern overlay */
+  .pattern-overlay {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+}
+
+@layer utilities {
+  /* Animation for live indicator */
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Glow effect for high edge scores */
+  .glow-gold {
+    box-shadow: 0 0 15px rgba(200, 174, 61, 0.3);
+  }
+}
