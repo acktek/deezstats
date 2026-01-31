@@ -26,7 +26,7 @@ import {
   Search,
   TrendingUp,
 } from "lucide-react";
-import { cn, getEdgeClass, getEdgeLabel } from "@/lib/utils";
+import { cn, getEdgeClass } from "@/lib/utils";
 
 interface PlayerLine {
   statType: string;
@@ -162,8 +162,8 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
 
     // Sort
     result.sort((a, b) => {
-      let aVal: any;
-      let bVal: any;
+      let aVal: string | number;
+      let bVal: string | number;
 
       switch (sortField) {
         case "name":
@@ -265,7 +265,7 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
         {/* Filter dropdowns */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Team Filter */}
-          <Select value={teamFilter} onValueChange={(v) => setTeamFilter(v as any)}>
+          <Select value={teamFilter} onValueChange={(v) => setTeamFilter(v as "all" | "home" | "away")}>
             <SelectTrigger className="w-[110px] sm:w-[140px]">
               <SelectValue placeholder="Team" />
             </SelectTrigger>

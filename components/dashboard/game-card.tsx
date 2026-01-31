@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn, getEdgeClass, getEdgeLabel } from "@/lib/utils";
@@ -111,10 +112,13 @@ export function GameCard({ game, playerEdges = [], onPlayerClick }: GameCardProp
           {/* Away Team */}
           <div className="flex items-center gap-3 flex-1">
             {game.awayTeamLogo && (
-              <img
+              <Image
                 src={game.awayTeamLogo}
                 alt={game.awayTeam}
+                width={40}
+                height={40}
                 className="h-10 w-10 object-contain"
+                unoptimized
               />
             )}
             <div>
@@ -145,10 +149,13 @@ export function GameCard({ game, playerEdges = [], onPlayerClick }: GameCardProp
               )}
             </div>
             {game.homeTeamLogo && (
-              <img
+              <Image
                 src={game.homeTeamLogo}
                 alt={game.homeTeam}
+                width={40}
+                height={40}
                 className="h-10 w-10 object-contain"
+                unoptimized
               />
             )}
           </div>

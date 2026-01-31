@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -211,10 +212,13 @@ function GamePickerCard({ game, onClick }: GamePickerCardProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {game.awayTeamLogo && (
-                <img
+                <Image
                   src={game.awayTeamLogo}
                   alt=""
+                  width={24}
+                  height={24}
                   className="h-6 w-6 object-contain flex-shrink-0"
+                  unoptimized
                 />
               )}
               <span className="font-medium truncate">{game.awayTeam}</span>
@@ -228,10 +232,13 @@ function GamePickerCard({ game, onClick }: GamePickerCardProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {game.homeTeamLogo && (
-                <img
+                <Image
                   src={game.homeTeamLogo}
                   alt=""
+                  width={24}
+                  height={24}
                   className="h-6 w-6 object-contain flex-shrink-0"
+                  unoptimized
                 />
               )}
               <span className="font-medium truncate">{game.homeTeam}</span>

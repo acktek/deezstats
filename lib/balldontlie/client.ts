@@ -184,15 +184,15 @@ export class BallDontLieClient {
     this.apiKey = apiKey || process.env.BALLDONTLIE_API_KEY || "";
   }
 
-  private async fetch<T>(endpoint: string, params?: Record<string, any>, noCache?: boolean): Promise<T> {
+  private async fetch<T>(endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
     return this.fetchFromBase<T>(API_BASE, endpoint, params, noCache);
   }
 
-  private async fetchV2<T>(endpoint: string, params?: Record<string, any>, noCache?: boolean): Promise<T> {
+  private async fetchV2<T>(endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
     return this.fetchFromBase<T>(API_BASE_V2, endpoint, params, noCache);
   }
 
-  private async fetchFromBase<T>(base: string, endpoint: string, params?: Record<string, any>, noCache?: boolean): Promise<T> {
+  private async fetchFromBase<T>(base: string, endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
     if (!this.apiKey) {
       throw new Error("BALLDONTLIE_API_KEY not configured");
     }

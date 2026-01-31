@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,10 +113,13 @@ export function GameScoreboard({ game, onSync, syncing, onSettingsClick }: GameS
               )}
             </div>
             {game.awayTeam.logo && (
-              <img
+              <Image
                 src={game.awayTeam.logo}
                 alt={game.awayTeam.name}
+                width={64}
+                height={64}
                 className="h-12 w-12 sm:h-16 sm:w-16 object-contain order-1 sm:order-2"
+                unoptimized
               />
             )}
           </div>
@@ -128,10 +132,13 @@ export function GameScoreboard({ game, onSync, syncing, onSettingsClick }: GameS
           {/* Home Team */}
           <div className="flex items-center gap-3 sm:gap-4 sm:flex-1">
             {game.homeTeam.logo && (
-              <img
+              <Image
                 src={game.homeTeam.logo}
                 alt={game.homeTeam.name}
+                width={64}
+                height={64}
                 className="h-12 w-12 sm:h-16 sm:w-16 object-contain"
+                unoptimized
               />
             )}
             <div className="text-center sm:text-left">
