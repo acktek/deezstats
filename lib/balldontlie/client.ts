@@ -3,7 +3,7 @@
 
 const API_BASE = "https://api.balldontlie.io/v1";
 const API_BASE_V2 = "https://api.balldontlie.io/v2";
-const API_BASE_NFL = "https://api.balldontlie.io";
+const API_BASE_ROOT = "https://api.balldontlie.io"; // For /nba/v1/ and /nfl/v1/ endpoints
 
 export type Sport = "nba" | "nfl";
 
@@ -194,7 +194,7 @@ export class BallDontLieClient {
   }
 
   private async fetchNFL<T>(endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
-    return this.fetchFromBase<T>(API_BASE_NFL, endpoint, params, noCache);
+    return this.fetchFromBase<T>(API_BASE_ROOT, endpoint, params, noCache);
   }
 
   private async fetchFromBase<T>(base: string, endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
@@ -248,7 +248,26 @@ export class BallDontLieClient {
       visitor_team: { players: BDLPlayerStats[] };
     };
   }> {
-    return this.fetch(`/games/${gameId}/box`);
+    // Fetch all live box scores and find the one for this game
+    const liveBoxScores = await this.getNBALiveBoxScores();
+    const boxScore = liveBoxScores.data.find((bs: any) => bs.game?.id === gameId);
+    if (boxScore) {
+      return { data: boxScore };
+    }
+    // Fallback: try fetching by date
+    throw new Error(`Box score not found for game ${gameId}`);
+  }
+
+  async getNBALiveBoxScores(): Promise<{ data: any[] }> {
+    return this.fetchNBA<{ data: any[] }>("/nba/v1/box_scores/live");
+  }
+
+  async getNBABoxScoresByDate(date: string): Promise<{ data: any[] }> {
+    return this.fetchNBA<{ data: any[] }>("/nba/v1/box_scores", { date });
+  }
+
+  private async fetchNBA<T>(endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
+    return this.fetchFromBase<T>(API_BASE_ROOT, endpoint, params, noCache); // Same base as NFL (no /v1 suffix)
   }
 
   async getNBAStats(params?: {
