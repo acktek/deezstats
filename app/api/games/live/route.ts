@@ -41,9 +41,19 @@ interface GameWithEdges {
   edges: PlayerEdge[];
 }
 
-function getTodayDate(): string {
-  // Use local date instead of UTC to match user's timezone
-  return new Date().toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+function getDateRange(): string[] {
+  // Fetch yesterday, today, and tomorrow (UTC) to handle timezone differences
+  // This ensures we catch games regardless of the user's timezone
+  const now = new Date();
+  const dates: string[] = [];
+
+  for (let offset = -1; offset <= 1; offset++) {
+    const date = new Date(now);
+    date.setUTCDate(date.getUTCDate() + offset);
+    dates.push(date.toISOString().split('T')[0]); // YYYY-MM-DD format
+  }
+
+  return dates;
 }
 
 export async function GET(request: NextRequest) {
@@ -60,15 +70,20 @@ export async function GET(request: NextRequest) {
           : ["nba", "nfl"];
 
     const allGames: GameWithEdges[] = [];
-    const today = getTodayDate();
+    const dates = getDateRange();
+    const seenGameIds = new Set<string>(); // Prevent duplicates
 
     for (const sport of sports) {
       try {
         if (sport === "nba") {
-          // Fetch NBA games from BALLDONTLIE
-          const nbaGames = await bdlClient.getNBAGames({ dates: [today], per_page: 100 });
+          // Fetch NBA games from BALLDONTLIE for date range
+          const nbaGames = await bdlClient.getNBAGames({ dates, per_page: 100 });
 
           for (const bdlGame of nbaGames.data) {
+            // Skip duplicates
+            if (seenGameIds.has(String(bdlGame.id))) continue;
+            seenGameIds.add(String(bdlGame.id));
+
             // Check status - BallDontLie may return various formats
             const statusLower = (bdlGame.status || "").toLowerCase();
             const isInProgress = statusLower.includes("progress") ||
@@ -176,10 +191,15 @@ export async function GET(request: NextRequest) {
             allGames.push({ game: liveGame, edges });
           }
         } else if (sport === "nfl") {
-          // Fetch NFL games from BALLDONTLIE
-          const nflGames = await bdlClient.getNFLGames({ dates: [today], per_page: 100 });
+          // Fetch NFL games from BALLDONTLIE for date range
+          const nflGames = await bdlClient.getNFLGames({ dates, per_page: 100 });
 
           for (const bdlGame of nflGames.data) {
+            // Skip duplicates
+            const nflGameId = `nfl-${bdlGame.id}`;
+            if (seenGameIds.has(nflGameId)) continue;
+            seenGameIds.add(nflGameId);
+
             // Check status - BallDontLie may return various formats
             const statusLower = (bdlGame.status || "").toLowerCase();
             const isInProgress = statusLower.includes("progress") ||
@@ -283,13 +303,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Sort games: live first, then by edge count
+    // Sort games: live first, then scheduled, then final
+    // Within each group, sort by start time (most recent first for final, soonest for scheduled)
     allGames.sort((a, b) => {
-      if (a.game.status === "in_progress" && b.game.status !== "in_progress")
-        return -1;
-      if (b.game.status === "in_progress" && a.game.status !== "in_progress")
-        return 1;
-      return b.edges.length - a.edges.length;
+      const statusOrder = { in_progress: 0, scheduled: 1, final: 2, postponed: 3 };
+      const aOrder = statusOrder[a.game.status] ?? 4;
+      const bOrder = statusOrder[b.game.status] ?? 4;
+
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      // Within same status, sort by start time
+      const aTime = new Date(a.game.startTime).getTime();
+      const bTime = new Date(b.game.startTime).getTime();
+
+      if (a.game.status === "scheduled") {
+        return aTime - bTime; // Soonest first for scheduled
+      }
+      return bTime - aTime; // Most recent first for final
     });
 
     return NextResponse.json({ games: allGames });
