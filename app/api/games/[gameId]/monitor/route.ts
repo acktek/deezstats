@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { games, players, playerLines, alerts } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { games, playerLines, alerts } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
-import { calculateEdgeScore, calculateMateoScore, shouldAlert, generateAlertMessage } from "@/lib/algorithm";
+import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
 
 export const dynamic = "force-dynamic";
 
@@ -239,8 +239,8 @@ export async function GET(
                         blocks: avg.blk || 0,
                       });
                     }
-                  } catch (avgError) {
-                    // Silently fail for individual player - don't log to reduce noise
+                  } catch {
+                    // Silently fail for individual player
                   }
                 });
 

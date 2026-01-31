@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { games, players, playerLines, liveStats } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { games, players, playerLines } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
 import { calculateEdgeScore } from "@/lib/algorithm";
 
