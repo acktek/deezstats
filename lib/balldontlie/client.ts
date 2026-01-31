@@ -3,6 +3,7 @@
 
 const API_BASE = "https://api.balldontlie.io/v1";
 const API_BASE_V2 = "https://api.balldontlie.io/v2";
+const API_BASE_NFL = "https://api.balldontlie.io";
 
 export type Sport = "nba" | "nfl";
 
@@ -192,6 +193,10 @@ export class BallDontLieClient {
     return this.fetchFromBase<T>(API_BASE_V2, endpoint, params, noCache);
   }
 
+  private async fetchNFL<T>(endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
+    return this.fetchFromBase<T>(API_BASE_NFL, endpoint, params, noCache);
+  }
+
   private async fetchFromBase<T>(base: string, endpoint: string, params?: Record<string, unknown>, noCache?: boolean): Promise<T> {
     if (!this.apiKey) {
       throw new Error("BALLDONTLIE_API_KEY not configured");
@@ -292,7 +297,7 @@ export class BallDontLieClient {
     cursor?: number;
     per_page?: number;
   }): Promise<APIResponse<BDLNFLGame>> {
-    return this.fetch<APIResponse<BDLNFLGame>>("/nfl/games", params);
+    return this.fetchNFL<APIResponse<BDLNFLGame>>("/nfl/v1/games", params);
   }
 
   async getNFLStats(params?: {
@@ -302,7 +307,7 @@ export class BallDontLieClient {
     cursor?: number;
     per_page?: number;
   }): Promise<APIResponse<BDLNFLPlayerStats>> {
-    return this.fetch<APIResponse<BDLNFLPlayerStats>>("/nfl/stats", params);
+    return this.fetchNFL<APIResponse<BDLNFLPlayerStats>>("/nfl/v1/stats", params);
   }
 
   async getNFLSeasonStats(params: {
@@ -310,7 +315,7 @@ export class BallDontLieClient {
     player_ids?: number[];
     postseason?: boolean;
   }): Promise<APIResponse<BDLNFLSeasonStats>> {
-    return this.fetch<APIResponse<BDLNFLSeasonStats>>("/nfl/season-stats", params);
+    return this.fetchNFL<APIResponse<BDLNFLSeasonStats>>("/nfl/v1/season_stats", params);
   }
 
   async getNFLPlayerProps(params: {
@@ -319,7 +324,7 @@ export class BallDontLieClient {
     vendors?: string[];
     prop_types?: string[];
   }): Promise<APIResponse<BDLPlayerProp>> {
-    return this.fetch<APIResponse<BDLPlayerProp>>("/nfl/player-props", params);
+    return this.fetchNFL<APIResponse<BDLPlayerProp>>("/nfl/v1/player_props", params);
   }
 
   async getNFLPlayers(params?: {
@@ -328,7 +333,7 @@ export class BallDontLieClient {
     cursor?: number;
     per_page?: number;
   }): Promise<APIResponse<BDLNFLPlayer>> {
-    return this.fetch<APIResponse<BDLNFLPlayer>>("/nfl/players", params);
+    return this.fetchNFL<APIResponse<BDLNFLPlayer>>("/nfl/v1/players", params);
   }
 }
 
