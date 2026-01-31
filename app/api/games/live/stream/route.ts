@@ -3,6 +3,7 @@ import { bdlClient } from "@/lib/balldontlie";
 import { db, players, playerLines, games } from "@/lib/db";
 import { calculateEdgeScore } from "@/lib/algorithm";
 import { eq, and } from "drizzle-orm";
+import { getDateRangeUTC } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,21 +43,18 @@ interface GameWithEdges {
   edges: PlayerEdge[];
 }
 
-function getTodayDate(): string {
-  return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
-}
-
 async function fetchGamesWithEdges(
   sports: Sport[],
   threshold: number
 ): Promise<GameWithEdges[]> {
   const allGames: GameWithEdges[] = [];
-  const today = getTodayDate();
+  // Use UTC date range to handle timezone differences between server and game schedules
+  const dates = getDateRangeUTC();
 
   for (const sport of sports) {
     try {
       if (sport === "nba") {
-        const nbaGames = await bdlClient.getNBAGames({ dates: [today], per_page: 100 });
+        const nbaGames = await bdlClient.getNBAGames({ dates, per_page: 100 });
 
         for (const bdlGame of nbaGames.data) {
           // Check status - BallDontLie may return various formats
@@ -165,7 +163,7 @@ async function fetchGamesWithEdges(
           allGames.push({ game: liveGame, edges });
         }
       } else if (sport === "nfl") {
-        const nflGames = await bdlClient.getNFLGames({ dates: [today], per_page: 100 });
+        const nflGames = await bdlClient.getNFLGames({ dates, per_page: 100 });
 
         for (const bdlGame of nflGames.data) {
           // Check status - BallDontLie may return various formats

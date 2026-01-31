@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bdlClient } from "@/lib/balldontlie";
+import { getDateRangeUTC } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,6 @@ interface PlayerStat {
   imageUrl?: string;
 }
 
-function getTodayDate(): string {
-  return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
-}
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const sportParam = searchParams.get("sport") || "all";
@@ -34,13 +31,14 @@ export async function GET(request: NextRequest) {
           : ["nba", "nfl"];
 
     const allPlayers: PlayerStat[] = [];
-    const today = getTodayDate();
+    // Use UTC date range to handle timezone differences between server and game schedules
+    const dates = getDateRangeUTC();
 
     for (const sport of sports) {
       try {
         if (sport === "nba") {
           // Fetch NBA games from BALLDONTLIE
-          const nbaGames = await bdlClient.getNBAGames({ dates: [today], per_page: 100 });
+          const nbaGames = await bdlClient.getNBAGames({ dates, per_page: 100 });
 
           for (const bdlGame of nbaGames.data) {
             const gameStatus = bdlGame.status === "Final" ? "final" :
@@ -90,7 +88,7 @@ export async function GET(request: NextRequest) {
           }
         } else if (sport === "nfl") {
           // Fetch NFL games from BALLDONTLIE
-          const nflGames = await bdlClient.getNFLGames({ dates: [today], per_page: 100 });
+          const nflGames = await bdlClient.getNFLGames({ dates, per_page: 100 });
 
           for (const bdlGame of nflGames.data) {
             const gameStatus = bdlGame.status === "Final" ? "final" :

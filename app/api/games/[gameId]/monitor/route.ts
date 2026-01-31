@@ -4,6 +4,7 @@ import { games, playerLines, alerts } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
 import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
+import { getDateRangeUTC, getCurrentSeasonUTC } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -117,9 +118,9 @@ export async function GET(
 
     if (dbGame.sport === "nba") {
       try {
-        // Fetch today's games to get current status (no cache for live data)
-        const today = new Date().toLocaleDateString('en-CA');
-        const nbaGames = await bdlClient.getNBAGames({ dates: [today], per_page: 100 }, true);
+        // Fetch games to get current status - use UTC date range to handle timezone differences
+        const dates = getDateRangeUTC();
+        const nbaGames = await bdlClient.getNBAGames({ dates, per_page: 100 }, true);
         const bdlGame = nbaGames.data.find(g => g.id === bdlGameId);
 
         if (bdlGame) {
@@ -229,9 +230,7 @@ export async function GET(
               // Fetch season averages for all players in this game (API only accepts one at a time)
               const playerIds = stats.data.map(ps => ps.player.id);
               if (playerIds.length > 0) {
-                const currentSeason = new Date().getMonth() >= 9
-                  ? new Date().getFullYear()
-                  : new Date().getFullYear() - 1;
+                const currentSeason = getCurrentSeasonUTC();
 
                 // Fetch in parallel for speed, limit to first 15 players to avoid rate limits
                 const playersToFetch = playerIds.slice(0, 15);
@@ -269,8 +268,9 @@ export async function GET(
       }
     } else if (dbGame.sport === "nfl") {
       try {
-        const today = new Date().toLocaleDateString('en-CA');
-        const nflGames = await bdlClient.getNFLGames({ dates: [today], per_page: 100 });
+        // Use UTC date range to handle timezone differences
+        const dates = getDateRangeUTC();
+        const nflGames = await bdlClient.getNFLGames({ dates, per_page: 100 });
         const bdlGame = nflGames.data.find(g => g.id === bdlGameId);
 
         if (bdlGame) {

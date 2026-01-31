@@ -5,21 +5,10 @@ import { games, players, liveStats, alerts, playerLines } from "@/lib/db/schema"
 import { calculateEdgeScore, shouldAlert, generateAlertMessage } from "@/lib/algorithm";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
+import { getDateRangeUTC, getCurrentSeasonUTC } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-function getTodayDate(): string {
-  return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
-}
-
-function getCurrentSeason(): number {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  // NBA/NFL seasons span two years, use the start year
-  return month >= 9 ? year : year - 1;
-}
 
 export async function GET(request: NextRequest) {
   // Allow access if: admin session OR valid cron API key
@@ -35,8 +24,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const today = getTodayDate();
-    const season = getCurrentSeason();
+    // Use UTC date range to handle timezone differences between server and game schedules
+    const dates = getDateRangeUTC();
+    const season = getCurrentSeasonUTC();
     let gamesUpdated = 0;
     let playersUpdated = 0;
     let propsUpdated = 0;
@@ -45,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     // ============ SYNC NBA ============
     try {
-      const nbaGames = await bdlClient.getNBAGames({ dates: [today], per_page: 100 });
+      const nbaGames = await bdlClient.getNBAGames({ dates, per_page: 100 });
 
       for (const bdlGame of nbaGames.data) {
         // Upsert game
@@ -257,7 +247,7 @@ export async function GET(request: NextRequest) {
 
     // ============ SYNC NFL ============
     try {
-      const nflGames = await bdlClient.getNFLGames({ dates: [today], per_page: 100 });
+      const nflGames = await bdlClient.getNFLGames({ dates, per_page: 100 });
 
       for (const bdlGame of nflGames.data) {
         const gameStatus = bdlGame.status === "Final" ? "final" :

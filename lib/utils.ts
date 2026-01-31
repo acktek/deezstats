@@ -24,3 +24,42 @@ export function getEdgeLabel(score: number): string {
   if (score < 3.0) return "Good";
   return "Strong";
 }
+
+/**
+ * Get today's date in UTC as YYYY-MM-DD string.
+ * Use this for API calls to ensure consistent behavior across environments.
+ */
+export function getTodayUTC(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Get a range of dates (yesterday, today, tomorrow) in UTC.
+ * This handles timezone differences between the server and game schedules.
+ * Games scheduled in US timezones may appear on different UTC dates.
+ */
+export function getDateRangeUTC(): string[] {
+  const now = new Date();
+  const dates: string[] = [];
+
+  for (let offset = -1; offset <= 1; offset++) {
+    const date = new Date(now);
+    date.setUTCDate(date.getUTCDate() + offset);
+    dates.push(date.toISOString().split('T')[0]);
+  }
+
+  return dates;
+}
+
+/**
+ * Get the current NBA/NFL season year.
+ * Seasons span two years (e.g., 2024-25), this returns the start year.
+ * Uses UTC month to ensure consistency.
+ */
+export function getCurrentSeasonUTC(): number {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  // NBA/NFL seasons start in fall (September/October)
+  return month >= 9 ? year : year - 1;
+}

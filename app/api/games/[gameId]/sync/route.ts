@@ -4,6 +4,7 @@ import { games, players, playerLines, liveStats, alerts } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
 import { calculateEdgeScore, shouldAlert, generateAlertMessage } from "@/lib/algorithm";
+import { getDateRangeUTC } from "@/lib/utils";
 
 export async function POST(
   request: NextRequest,
@@ -38,8 +39,9 @@ export async function POST(
       const bdlGameId = parseInt(game.espnId);
 
       try {
-        // Get game info
-        const nbaGames = await bdlClient.getNBAGames({ dates: [new Date().toLocaleDateString('en-CA')], per_page: 100 });
+        // Get game info - use UTC date range to handle timezone differences
+        const dates = getDateRangeUTC();
+        const nbaGames = await bdlClient.getNBAGames({ dates, per_page: 100 });
         const bdlGame = nbaGames.data.find(g => g.id === bdlGameId);
 
         if (bdlGame) {
@@ -179,8 +181,9 @@ export async function POST(
       const bdlGameId = parseInt(game.espnId.replace("nfl-", ""));
 
       try {
-        // Get game info
-        const nflGames = await bdlClient.getNFLGames({ dates: [new Date().toLocaleDateString('en-CA')], per_page: 100 });
+        // Get game info - use UTC date range to handle timezone differences
+        const dates = getDateRangeUTC();
+        const nflGames = await bdlClient.getNFLGames({ dates, per_page: 100 });
         const bdlGame = nflGames.data.find(g => g.id === bdlGameId);
 
         if (bdlGame) {
