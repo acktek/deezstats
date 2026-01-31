@@ -42,18 +42,19 @@ export function GameScoreboard({ game, onSync, syncing, onSettingsClick }: GameS
     <Card className="card-leather">
       <CardContent className="py-4">
         {/* Top Bar: Navigation and Actions */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push("/dashboard")}
-            className="gap-2"
+            className="gap-2 w-fit"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Games
+            <span className="hidden sm:inline">Back to Games</span>
+            <span className="sm:hidden">Back</span>
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Status Badge */}
             {isLive ? (
               <Badge variant="live" className="animate-pulse">
@@ -88,7 +89,8 @@ export function GameScoreboard({ game, onSync, syncing, onSettingsClick }: GameS
               className="gap-2"
             >
               <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
-              {syncing ? "Syncing..." : "Sync Now"}
+              <span className="hidden sm:inline">{syncing ? "Syncing..." : "Sync Now"}</span>
+              <span className="sm:hidden">{syncing ? "..." : "Sync"}</span>
             </Button>
 
             {onSettingsClick && (
@@ -100,42 +102,42 @@ export function GameScoreboard({ game, onSync, syncing, onSettingsClick }: GameS
         </div>
 
         {/* Scoreboard */}
-        <div className="flex items-center justify-center gap-8 py-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 py-4">
           {/* Away Team */}
-          <div className="flex items-center gap-4 flex-1 justify-end">
-            <div className="text-right">
-              <p className="text-lg font-semibold">{game.awayTeam.name}</p>
+          <div className="flex items-center gap-3 sm:gap-4 sm:flex-1 sm:justify-end">
+            <div className="text-center sm:text-right order-2 sm:order-1">
+              <p className="text-base sm:text-lg font-semibold">{game.awayTeam.name}</p>
               {!isScheduled && (
-                <p className="text-4xl font-bold tabular-nums">{game.awayTeam.score}</p>
+                <p className="text-3xl sm:text-4xl font-bold tabular-nums">{game.awayTeam.score}</p>
               )}
             </div>
             {game.awayTeam.logo && (
               <img
                 src={game.awayTeam.logo}
                 alt={game.awayTeam.name}
-                className="h-16 w-16 object-contain"
+                className="h-12 w-12 sm:h-16 sm:w-16 object-contain order-1 sm:order-2"
               />
             )}
           </div>
 
           {/* Divider */}
-          <div className="flex flex-col items-center px-4">
-            <span className="text-2xl text-muted-foreground font-light">@</span>
+          <div className="flex flex-col items-center px-2 sm:px-4">
+            <span className="text-xl sm:text-2xl text-muted-foreground font-light">@</span>
           </div>
 
           {/* Home Team */}
-          <div className="flex items-center gap-4 flex-1">
+          <div className="flex items-center gap-3 sm:gap-4 sm:flex-1">
             {game.homeTeam.logo && (
               <img
                 src={game.homeTeam.logo}
                 alt={game.homeTeam.name}
-                className="h-16 w-16 object-contain"
+                className="h-12 w-12 sm:h-16 sm:w-16 object-contain"
               />
             )}
-            <div>
-              <p className="text-lg font-semibold">{game.homeTeam.name}</p>
+            <div className="text-center sm:text-left">
+              <p className="text-base sm:text-lg font-semibold">{game.homeTeam.name}</p>
               {!isScheduled && (
-                <p className="text-4xl font-bold tabular-nums">{game.homeTeam.score}</p>
+                <p className="text-3xl sm:text-4xl font-bold tabular-nums">{game.homeTeam.score}</p>
               )}
             </div>
           </div>

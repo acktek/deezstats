@@ -250,9 +250,9 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="space-y-3">
+        {/* Search - full width on mobile */}
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search players..."
@@ -262,86 +262,90 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
           />
         </div>
 
-        {/* Team Filter */}
-        <Select value={teamFilter} onValueChange={(v) => setTeamFilter(v as any)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Team" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Teams</SelectItem>
-            <SelectItem value="away">{awayTeam}</SelectItem>
-            <SelectItem value="home">{homeTeam}</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Filter dropdowns */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Team Filter */}
+          <Select value={teamFilter} onValueChange={(v) => setTeamFilter(v as any)}>
+            <SelectTrigger className="w-[110px] sm:w-[140px]">
+              <SelectValue placeholder="Team" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Teams</SelectItem>
+              <SelectItem value="away">{awayTeam}</SelectItem>
+              <SelectItem value="home">{homeTeam}</SelectItem>
+            </SelectContent>
+          </Select>
 
-        {/* Stat Filter */}
-        <Select value={statFilter} onValueChange={setStatFilter}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Stat Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Stats</SelectItem>
-            {statTypes.map((stat) => (
-              <SelectItem key={stat} value={stat}>
-                {statLabels[stat] || stat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {/* Stat Filter */}
+          <Select value={statFilter} onValueChange={setStatFilter}>
+            <SelectTrigger className="w-[100px] sm:w-[140px]">
+              <SelectValue placeholder="Stat" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stats</SelectItem>
+              {statTypes.map((stat) => (
+                <SelectItem key={stat} value={stat}>
+                  {statLabels[stat] || stat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        {/* Edge Filter */}
-        <Select value={edgeFilter} onValueChange={setEdgeFilter}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Edge Level" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Players</SelectItem>
-            <SelectItem value="monitor">Monitor+ (1.5)</SelectItem>
-            <SelectItem value="good">Good+ (2.0)</SelectItem>
-            <SelectItem value="strong">Strong+ (3.0)</SelectItem>
-          </SelectContent>
-        </Select>
+          {/* Edge Filter */}
+          <Select value={edgeFilter} onValueChange={setEdgeFilter}>
+            <SelectTrigger className="w-[100px] sm:w-[140px]">
+              <SelectValue placeholder="Edge" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="monitor">1.5+</SelectItem>
+              <SelectItem value="good">2.0+</SelectItem>
+              <SelectItem value="strong">3.0+</SelectItem>
+            </SelectContent>
+          </Select>
 
-        {/* Results Count */}
-        <span className="text-sm text-muted-foreground ml-auto">
-          {filteredRows.length} {filteredRows.length === 1 ? "line" : "lines"}
-        </span>
+          {/* Results Count */}
+          <span className="text-sm text-muted-foreground ml-auto">
+            {filteredRows.length} {filteredRows.length === 1 ? "line" : "lines"}
+          </span>
+        </div>
       </div>
 
       {/* Table */}
       <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px]">
-                <SortHeader field="name">Player</SortHeader>
-              </TableHead>
-              <TableHead className="w-[120px]">
-                <SortHeader field="team">Team</SortHeader>
-              </TableHead>
-              <TableHead className="w-[100px]">
-                <SortHeader field="statType">Stat</SortHeader>
-              </TableHead>
-              <TableHead className="w-[80px] text-right">
-                <SortHeader field="line">Line</SortHeader>
-              </TableHead>
-              <TableHead className="w-[80px] text-right">
-                <SortHeader field="current">Current</SortHeader>
-              </TableHead>
-              <TableHead className="w-[80px] text-right">
-                <SortHeader field="pace">Pace</SortHeader>
-              </TableHead>
-              <TableHead className="w-[100px] text-right">
-                <SortHeader field="edge">Edge</SortHeader>
-              </TableHead>
-              <TableHead className="w-[100px] text-right">
-                <SortHeader field="mateo">Mateo</SortHeader>
-              </TableHead>
-              <TableHead className="w-[80px] text-right">
-                <SortHeader field="seasonAvg">Szn Avg</SortHeader>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[140px] sm:w-[200px] sticky left-0 bg-background z-10">
+                  <SortHeader field="name">Player</SortHeader>
+                </TableHead>
+                <TableHead className="hidden sm:table-cell w-[120px]">
+                  <SortHeader field="team">Team</SortHeader>
+                </TableHead>
+                <TableHead className="min-w-[70px] sm:w-[100px]">
+                  <SortHeader field="statType">Stat</SortHeader>
+                </TableHead>
+                <TableHead className="min-w-[60px] sm:w-[80px] text-right">
+                  <SortHeader field="line">Line</SortHeader>
+                </TableHead>
+                <TableHead className="min-w-[60px] sm:w-[80px] text-right">
+                  <SortHeader field="current">Cur</SortHeader>
+                </TableHead>
+                <TableHead className="hidden md:table-cell w-[80px] text-right">
+                  <SortHeader field="pace">Pace</SortHeader>
+                </TableHead>
+                <TableHead className="min-w-[70px] sm:w-[100px] text-right">
+                  <SortHeader field="edge">Edge</SortHeader>
+                </TableHead>
+                <TableHead className="min-w-[70px] sm:w-[100px] text-right">
+                  <SortHeader field="mateo">Mateo</SortHeader>
+                </TableHead>
+                <TableHead className="hidden lg:table-cell w-[80px] text-right">
+                  <SortHeader field="seasonAvg">Avg</SortHeader>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
           <TableBody>
             {filteredRows.length === 0 ? (
               <TableRow>
@@ -355,27 +359,28 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
                   key={`${row.playerId}-${row.statType}-${idx}`}
                   className={cn(row.edgeScore >= 2.0 && "bg-primary/5")}
                 >
-                  <TableCell>
+                  <TableCell className="sticky left-0 bg-background z-10">
                     <div>
-                      <span className="font-medium">{row.playerName}</span>
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {row.position}
-                      </span>
+                      <span className="font-medium text-sm sm:text-base">{row.playerName}</span>
+                      <div className="text-xs text-muted-foreground">
+                        <span>{row.position}</span>
+                        <span className="sm:hidden"> - {row.team}</span>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{row.team}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-sm">{row.team}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="font-mono text-xs">
                       {statLabels[row.statType] || row.statType}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="text-right font-mono text-sm">
                     {row.pregameLine}
                   </TableCell>
-                  <TableCell className="text-right font-mono font-medium">
+                  <TableCell className="text-right font-mono font-medium text-sm">
                     {row.currentValue}
                   </TableCell>
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="hidden md:table-cell text-right font-mono">
                     <span
                       className={cn(
                         row.projectedPace > row.pregameLine
@@ -391,18 +396,18 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
                   <TableCell className="text-right">
                     {row.edgeScore > 0 ? (
                       <div className="flex items-center justify-end gap-1">
-                        {row.edgeScore >= 1.5 && (
-                          <TrendingUp
-                            className={cn(
-                              "h-3 w-3",
-                              row.edgeScore >= 3.0
-                                ? "text-green-500"
-                                : row.edgeScore >= 2.0
-                                  ? "text-yellow-500"
-                                  : "text-orange-500"
-                            )}
-                          />
-                        )}
+                        <TrendingUp
+                          className={cn(
+                            "h-3 w-3 hidden sm:block",
+                            row.edgeScore >= 3.0
+                              ? "text-green-500"
+                              : row.edgeScore >= 2.0
+                                ? "text-yellow-500"
+                                : row.edgeScore >= 1.5
+                                  ? "text-orange-500"
+                                  : "text-muted-foreground"
+                          )}
+                        />
                         <Badge
                           className={cn("font-mono text-xs", getEdgeClass(row.edgeScore))}
                         >
@@ -434,7 +439,7 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground">
+                  <TableCell className="hidden lg:table-cell text-right font-mono text-muted-foreground">
                     {row.seasonAverage != null ? row.seasonAverage.toFixed(1) : "-"}
                   </TableCell>
                 </TableRow>
@@ -442,6 +447,7 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );

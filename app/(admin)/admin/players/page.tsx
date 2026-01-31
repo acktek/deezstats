@@ -146,7 +146,7 @@ export default function PlayersAdminPage() {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to save player",

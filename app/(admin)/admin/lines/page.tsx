@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,7 +170,7 @@ export default function LinesPage() {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to add line",
@@ -191,7 +191,7 @@ export default function LinesPage() {
         toast({ title: "Line deleted" });
         fetchLines();
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to delete line",
@@ -232,7 +232,7 @@ export default function LinesPage() {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to sync lines",

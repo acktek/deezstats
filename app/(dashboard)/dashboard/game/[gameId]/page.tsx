@@ -173,45 +173,41 @@ export default function GameMonitoringPage() {
 
       {/* Stats Summary */}
       {isLive && (
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
           <span>
-            {data.players.length} players with lines
+            {data.players.length} players
           </span>
           <span className="text-muted-foreground/50">|</span>
           <span className={totalEdges > 0 ? "text-yellow-500" : ""}>
-            {totalEdges} edges detected
+            {totalEdges} edges
           </span>
           {strongEdges > 0 && (
             <>
               <span className="text-muted-foreground/50">|</span>
               <span className="text-green-500 font-medium">
-                {strongEdges} strong opportunities
+                {strongEdges} strong
               </span>
             </>
           )}
           {lastUpdated && (
             <>
-              <span className="text-muted-foreground/50">|</span>
-              <span>
-                Last updated: {lastUpdated.toLocaleTimeString()}
+              <span className="hidden sm:inline text-muted-foreground/50">|</span>
+              <span className="hidden sm:inline">
+                Updated: {lastUpdated.toLocaleTimeString()}
               </span>
             </>
           )}
-          {isLive && (
-            <>
-              <span className="text-muted-foreground/50">|</span>
-              <span className="text-primary">
-                Auto-refreshing every 10s
-              </span>
-            </>
-          )}
+          <span className="text-muted-foreground/50">|</span>
+          <span className="text-primary">
+            <span className="hidden sm:inline">Auto-refresh </span>10s
+          </span>
         </div>
       )}
 
       {/* Main Content: Table and Alerts */}
-      <div className="grid gap-6 xl:grid-cols-[1fr,350px]">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr,300px] xl:grid-cols-[1fr,350px]">
         {/* Monitoring Table */}
-        <div className="min-w-0">
+        <div className="min-w-0 order-2 lg:order-1">
           <MonitoringTable
             players={data.players}
             homeTeam={data.game.homeTeam.name}
@@ -220,7 +216,7 @@ export default function GameMonitoringPage() {
         </div>
 
         {/* Alerts Panel */}
-        <div className="xl:sticky xl:top-6 xl:self-start">
+        <div className="order-1 lg:order-2 lg:sticky lg:top-6 lg:self-start">
           <AlertsPanel alerts={data.alerts} />
         </div>
       </div>
