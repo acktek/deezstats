@@ -304,6 +304,7 @@ export async function GET(
                   playerName: `${ps.player.first_name} ${ps.player.last_name}`,
                   team: ps.team.full_name,
                   position: ps.player.position_abbreviation || "N/A",
+                  minutesPlayed: 0, // NFL doesn't track minutes the same way
                   stats: {
                     passing_yards: ps.passing_yards || 0,
                     rushing_yards: ps.rushing_yards || 0,

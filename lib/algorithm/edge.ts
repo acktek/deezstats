@@ -85,7 +85,7 @@ export function calculateEdgeScore(input: EdgeInput): EdgeResult {
 
   // GAME_TIMING: Early game opportunities are more valuable
   // Decays from 1.0 to 0.5 as game progresses
-  const gameTiming = 1 - elapsedPct * 0.5;
+  const gameTiming = 1 - (gameElapsedPercent / 100) * 0.5;
 
   // VARIANCE_PENALTY: Reduce score for historically inconsistent players
   const variancePenalty = historicalStddev > 0 ? historicalStddev / line : 0;

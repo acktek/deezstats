@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
         // Get player props for upcoming/live games
         if (gameStatus !== "final") {
           try {
-            const props = await bdlClient.getNBAPlayerProps({ game_ids: [bdlGame.id] });
+            const props = await bdlClient.getNBAPlayerProps({ game_id: bdlGame.id });
 
             for (const prop of props.data) {
               // Find or create player
@@ -209,7 +209,8 @@ export async function GET(request: NextRequest) {
               }
 
               // Map prop type to our stat type
-              const statTypeMap: Record<string, string> = {
+              type StatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns" | "points" | "rebounds" | "assists" | "three_pointers" | "steals" | "blocks";
+              const statTypeMap: Record<string, StatType> = {
                 points: "points",
                 rebounds: "rebounds",
                 assists: "assists",
@@ -217,7 +218,8 @@ export async function GET(request: NextRequest) {
                 steals: "steals",
                 blocks: "blocks",
               };
-              const statType = statTypeMap[prop.prop_type] || prop.prop_type;
+              const statType = statTypeMap[prop.prop_type];
+              if (!statType) continue; // Skip unknown stat types
 
               // Upsert line
               const existingLine = await db.query.playerLines.findFirst({
@@ -400,7 +402,8 @@ export async function GET(request: NextRequest) {
                 dbPlayer = newPlayer;
               }
 
-              const statTypeMap: Record<string, string> = {
+              type NFLStatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns";
+              const statTypeMap: Record<string, NFLStatType> = {
                 passing_yards: "passing_yards",
                 rushing_yards: "rushing_yards",
                 receiving_yards: "receiving_yards",
@@ -409,7 +412,8 @@ export async function GET(request: NextRequest) {
                 rushing_tds: "touchdowns",
                 receiving_tds: "touchdowns",
               };
-              const statType = statTypeMap[prop.prop_type] || prop.prop_type;
+              const statType = statTypeMap[prop.prop_type];
+              if (!statType) continue; // Skip unknown stat types
 
               const existingLine = await db.query.playerLines.findFirst({
                 where: and(

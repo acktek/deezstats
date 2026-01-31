@@ -5,7 +5,22 @@ import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn, getEdgeClass, getEdgeLabel } from "@/lib/utils";
-import type { LiveGame } from "@/lib/espn/types";
+
+interface LiveGame {
+  espnId: string;
+  sport: "nba" | "nfl";
+  status: "scheduled" | "in_progress" | "final";
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number;
+  awayScore: number;
+  homeTeamLogo?: string;
+  awayTeamLogo?: string;
+  startTime: string;
+  period: number;
+  timeRemaining?: string;
+  gameElapsedPercent: number;
+}
 
 interface PlayerEdge {
   playerId: string;

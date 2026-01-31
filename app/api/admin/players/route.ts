@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, team, position, sport, gamesPlayed, seasonAvg, isRookie } = body;
+    const { name, team, position, sport, gamesPlayed, seasonAvg, isRookie, espnId } = body;
 
     if (!name || !team || !position || !sport) {
       return NextResponse.json(
@@ -57,9 +57,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate a unique espnId if not provided (for manually created players)
+    const playerEspnId = espnId || `manual-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
     const [newPlayer] = await db
       .insert(players)
       .values({
+        espnId: playerEspnId,
         name,
         team,
         position,

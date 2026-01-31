@@ -207,12 +207,14 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
           bVal = b.edgeScore;
       }
 
-      if (typeof aVal === "string") {
+      if (typeof aVal === "string" && typeof bVal === "string") {
         const comparison = aVal.localeCompare(bVal);
         return sortDirection === "asc" ? comparison : -comparison;
       }
 
-      return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+      const numA = Number(aVal);
+      const numB = Number(bVal);
+      return sortDirection === "asc" ? numA - numB : numB - numA;
     });
 
     return result;

@@ -115,12 +115,13 @@ export async function GET(
 
       // Calculate edges for lines
       const edges: any[] = [];
+      const gameElapsed = game.gameElapsedPercent ?? 0;
       for (const line of playerLinesList) {
         const currentValue = bdlPlayer.stats[line.statType] || 0;
-        if (currentValue > 0 && game.gameElapsedPercent > 0) {
+        if (currentValue > 0 && gameElapsed > 0) {
           const result = calculateEdgeScore({
             currentValue,
-            gameElapsedPercent: game.gameElapsedPercent,
+            gameElapsedPercent: gameElapsed,
             pregameLine: line.pregameLine,
             gamesPlayed: dbPlayer?.gamesPlayed || 1,
             historicalStddev: dbPlayer?.historicalStddev || 0,
