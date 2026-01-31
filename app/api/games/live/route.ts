@@ -93,8 +93,23 @@ export async function GET(request: NextRequest) {
 
             const gameStatus = isFinal ? "final" : isInProgress ? "in_progress" : "scheduled";
 
+            // Parse time remaining - format can be "11:41", "Q3 11:41", ":28.8", etc.
+            let minutesRemaining = 12;
+            if (bdlGame.time) {
+              const timeMatch = bdlGame.time.match(/(\d+):(\d+)/);
+              if (timeMatch) {
+                minutesRemaining = parseInt(timeMatch[1]) + parseInt(timeMatch[2]) / 60;
+              } else {
+                // Try parsing just seconds like ":28.8"
+                const secMatch = bdlGame.time.match(/:(\d+\.?\d*)/);
+                if (secMatch) {
+                  minutesRemaining = parseFloat(secMatch[1]) / 60;
+                }
+              }
+            }
+
             const gameElapsed = gameStatus === "final" ? 100 :
-              gameStatus === "in_progress" ? ((bdlGame.period - 1) * 25 + (12 - parseFloat(bdlGame.time || "12")) / 12 * 25) : 0;
+              gameStatus === "in_progress" ? ((bdlGame.period - 1) * 25 + (12 - minutesRemaining) / 12 * 25) : 0;
 
             const liveGame: LiveGame = {
               id: String(bdlGame.id),
@@ -209,8 +224,17 @@ export async function GET(request: NextRequest) {
 
             const gameStatus = isFinal ? "final" : isInProgress ? "in_progress" : "scheduled";
 
+            // Parse time remaining for NFL (15 min quarters)
+            let nflMinutesRemaining = 15;
+            if (bdlGame.time) {
+              const timeMatch = bdlGame.time.match(/(\d+):(\d+)/);
+              if (timeMatch) {
+                nflMinutesRemaining = parseInt(timeMatch[1]) + parseInt(timeMatch[2]) / 60;
+              }
+            }
+
             const gameElapsed = gameStatus === "final" ? 100 :
-              gameStatus === "in_progress" ? ((bdlGame.quarter - 1) * 25 + (15 - parseFloat(bdlGame.time || "15")) / 15 * 25) : 0;
+              gameStatus === "in_progress" ? ((bdlGame.quarter - 1) * 25 + (15 - nflMinutesRemaining) / 15 * 25) : 0;
 
             const liveGame: LiveGame = {
               id: `nfl-${bdlGame.id}`,
