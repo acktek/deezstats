@@ -53,7 +53,8 @@ export async function POST() {
           }
 
           // Map prop type to our stat type
-          const statTypeMap: Record<string, string> = {
+          type StatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns" | "points" | "rebounds" | "assists" | "three_pointers" | "steals" | "blocks";
+          const statTypeMap: Record<string, StatType> = {
             points: "points",
             rebounds: "rebounds",
             assists: "assists",
@@ -61,7 +62,8 @@ export async function POST() {
             steals: "steals",
             blocks: "blocks",
           };
-          const statType = statTypeMap[prop.prop_type] || prop.prop_type;
+          const statType = statTypeMap[prop.prop_type];
+          if (!statType) continue; // Skip unknown stat types
 
           // Check if line already exists
           const existingLine = await db.query.playerLines.findFirst({
