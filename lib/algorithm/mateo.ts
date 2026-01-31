@@ -4,7 +4,7 @@
  * A clean pace-based approach:
  *
  * % Target = Live_Stat / Live_Prop
- * % Pace = % Target / % Game_Remaining
+ * % Pace = % Target / % Game_Elapsed
  *
  * Interpretation:
  * - % Pace = 1 → Player is exactly on target
@@ -29,13 +29,13 @@ export function calculateMateoScore(input: MateoInput): MateoResult {
 
   // Avoid division by zero
   const line = Math.max(pregameLine, 0.1);
-  const gameRemaining = Math.max((100 - gameElapsedPercent) / 100, 0.01);
+  const gameElapsed = Math.max(gameElapsedPercent / 100, 0.01);
 
   // % Target = Live_Stat / Live_Prop
   const targetPercent = currentValue / line;
 
-  // % Pace = % Target / % Game_Remaining
-  const pacePercent = targetPercent / gameRemaining;
+  // % Pace = % Target / % Game_Elapsed
+  const pacePercent = targetPercent / gameElapsed;
 
   // Determine signal
   const signal = getMateoSignal(pacePercent);
