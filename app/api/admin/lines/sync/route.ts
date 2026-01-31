@@ -138,8 +138,10 @@ export async function POST() {
             passing_tds: "touchdowns",
             rushing_tds: "touchdowns",
             receiving_tds: "touchdowns",
-          };
-          const statType = statTypeMap[prop.prop_type] || prop.prop_type;
+          } as const;
+          type NFLStatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns";
+          const statType = statTypeMap[prop.prop_type as keyof typeof statTypeMap] as NFLStatType | undefined;
+          if (!statType) continue; // Skip unknown stat types
 
           const existingLine = await db.query.playerLines.findFirst({
             where: and(

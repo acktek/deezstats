@@ -8,10 +8,17 @@
  * EDGE_SCORE = (PACE_RATIO × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
  *
  * Where:
- * - PACE_RATIO = (current_stats / game_elapsed%) / pregame_line
+ * - PACE_RATIO = (current_stats / player_progress%) / pregame_line
+ * - player_progress% = minutes_played / expected_minutes (if available)
+ *                    = game_elapsed% (fallback)
  * - DATA_SCARCITY = 1 + (1 / sqrt(games_played + 1))
  * - GAME_TIMING = 1 - (game_elapsed% × 0.5)
  * - VARIANCE_PENALTY = historical_stddev / pregame_line
+ *
+ * Using minutes played instead of game elapsed prevents false positives when:
+ * - Player is sitting due to foul trouble
+ * - Blowout game (starters benched early)
+ * - Player has already played more than their usual minutes
  */
 
 export interface EdgeInput {
@@ -21,6 +28,9 @@ export interface EdgeInput {
   gamesPlayed: number;
   historicalStddev?: number;
   isRookie?: boolean;
+  // Minutes-based pace (more accurate than game elapsed)
+  minutesPlayed?: number;      // Current minutes played (e.g., 24.5)
+  expectedMinutes?: number;    // Season avg minutes per game (e.g., 32)
 }
 
 export interface EdgeResult {
@@ -44,14 +54,25 @@ export function calculateEdgeScore(input: EdgeInput): EdgeResult {
     gamesPlayed,
     historicalStddev = 0,
     isRookie = false,
+    minutesPlayed,
+    expectedMinutes,
   } = input;
 
   // Avoid division by zero
-  const elapsedPct = Math.max(gameElapsedPercent, 1) / 100;
   const line = Math.max(pregameLine, 0.1);
 
+  // Calculate player progress - prefer minutes-based if available
+  let playerProgress: number;
+  if (minutesPlayed !== undefined && expectedMinutes && expectedMinutes > 0) {
+    // Minutes-based progress: how much of their expected minutes they've played
+    playerProgress = Math.max(minutesPlayed / expectedMinutes, 0.01);
+  } else {
+    // Fallback to game elapsed percentage
+    playerProgress = Math.max(gameElapsedPercent, 1) / 100;
+  }
+
   // Calculate projected pace (what they're on pace for)
-  const pace = currentValue / elapsedPct;
+  const pace = currentValue / playerProgress;
   const projectedFinal = pace;
 
   // PACE_RATIO: How much ahead of the line they are, normalized

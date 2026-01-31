@@ -7,6 +7,15 @@ import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
 
 export const dynamic = "force-dynamic";
 
+// Helper to parse minutes string (e.g., "32:45" → 32.75)
+function parseMinutes(minStr: string | undefined): number {
+  if (!minStr) return 0;
+  const parts = minStr.split(":");
+  const minutes = parseInt(parts[0]) || 0;
+  const seconds = parseInt(parts[1]) || 0;
+  return minutes + seconds / 60;
+}
+
 // Types for the monitoring response
 interface MonitoringData {
   game: {
@@ -88,6 +97,7 @@ export async function GET(
       playerName: string;
       team: string;
       position: string;
+      minutesPlayed: number;
       stats: Record<string, number>;
     }>();
 
@@ -99,6 +109,7 @@ export async function GET(
       steals: number;
       blocks: number;
       three_pointers?: number;
+      expectedMinutes?: number;
     }>();
 
     // Map to store betting lines fetched from API (playerId -> statType -> line)
@@ -203,6 +214,7 @@ export async function GET(
                   playerName: `${ps.player.first_name} ${ps.player.last_name}`,
                   team: ps.team.full_name,
                   position: ps.player.position || "N/A",
+                  minutesPlayed: parseMinutes(ps.min),
                   stats: {
                     points: ps.pts || 0,
                     rebounds: ps.reb || 0,
@@ -237,6 +249,7 @@ export async function GET(
                         assists: avg.ast || 0,
                         steals: avg.stl || 0,
                         blocks: avg.blk || 0,
+                        expectedMinutes: parseMinutes(avg.min),
                       });
                     }
                   } catch {
@@ -347,6 +360,10 @@ export async function GET(
           let pace = 0;
 
           if (currentValue > 0 && gameElapsedPercent > 0) {
+            // Get minutes data for more accurate pace calculation
+            const minutesPlayed = playerData.minutesPlayed;
+            const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
+
             const result = calculateEdgeScore({
               currentValue,
               gameElapsedPercent,
@@ -354,6 +371,8 @@ export async function GET(
               gamesPlayed: dbPlayer?.gamesPlayed || 10,
               historicalStddev: dbPlayer?.historicalStddev || 0,
               isRookie: dbPlayer?.isRookie || false,
+              minutesPlayed,
+              expectedMinutes,
             });
             edgeScore = result.edgeScore;
             pace = result.pace;
@@ -363,6 +382,8 @@ export async function GET(
               currentValue,
               pregameLine: line.pregameLine,
               gameElapsedPercent,
+              minutesPlayed,
+              expectedMinutes,
             });
             mateoScore = mateoResult.pacePercent;
           }
@@ -399,6 +420,11 @@ export async function GET(
           let edgeScore = 0;
           let mateoScore = 0;
           let pace = 0;
+
+          // Get minutes data for more accurate pace calculation
+          const minutesPlayed = playerData.minutesPlayed;
+          const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
+
           if (value > 0 && apiLine > 0 && gameElapsedPercent > 0) {
             const result = calculateEdgeScore({
               currentValue: value,
@@ -407,6 +433,8 @@ export async function GET(
               gamesPlayed: 10,
               historicalStddev: 0,
               isRookie: false,
+              minutesPlayed,
+              expectedMinutes,
             });
             edgeScore = result.edgeScore;
             pace = result.pace;
@@ -416,10 +444,18 @@ export async function GET(
               currentValue: value,
               pregameLine: apiLine,
               gameElapsedPercent,
+              minutesPlayed,
+              expectedMinutes,
             });
             mateoScore = mateoResult.pacePercent;
           } else if (value > 0 && gameElapsedPercent > 0) {
-            pace = (value / gameElapsedPercent) * 100;
+            // If we have minutes data, use it for pace calculation
+            if (minutesPlayed && expectedMinutes && expectedMinutes > 0) {
+              const progress = minutesPlayed / expectedMinutes;
+              pace = progress > 0 ? value / progress : 0;
+            } else {
+              pace = (value / gameElapsedPercent) * 100;
+            }
           }
 
           // Only show stats that have value OR have a line

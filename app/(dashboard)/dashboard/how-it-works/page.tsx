@@ -10,6 +10,7 @@ import {
   Zap,
   Database,
   RefreshCw,
+  Timer,
 } from "lucide-react";
 
 export default function HowItWorksPage() {
@@ -19,7 +20,7 @@ export default function HowItWorksPage() {
       <div>
         <h1 className="font-display text-2xl font-bold">How DeezStats Works</h1>
         <p className="text-muted-foreground">
-          Understanding the edge detection algorithm and the market inefficiency it exploits.
+          Understanding the edge detection algorithms and market inefficiencies they exploit.
         </p>
       </div>
 
@@ -59,18 +60,71 @@ export default function HowItWorksPage() {
         </CardContent>
       </Card>
 
-      {/* The Algorithm */}
+      {/* Minutes-Based Accuracy */}
+      <Card className="card-leather border-primary/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-xl">
+            <Timer className="h-5 w-5 text-primary" />
+            Minutes-Based Pace (Key Innovation)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>
+            Traditional pace calculations use <strong>game elapsed time</strong>,
+            which can cause false positives. DeezStats uses{" "}
+            <strong>actual minutes played</strong> for more accurate projections.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="font-semibold text-red-600 dark:text-red-400 mb-2">
+                ❌ Old Way (Game Elapsed)
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Player has 15 pts at halftime (50% elapsed) → Projects 30 pts
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Problem: Player already played 28 of their expected 34 minutes!
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+              <p className="font-semibold text-green-600 dark:text-green-400 mb-2">
+                ✓ DeezStats (Minutes Played)
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Player has 15 pts with 28/34 min played (82%) → Projects 18 pts
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Accounts for actual playing time, not just game clock.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-muted/30 p-4 rounded-lg border border-border">
+            <p className="text-sm font-medium mb-2">This prevents false positives when:</p>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li>Starters are benched in blowouts</li>
+              <li>Player is in foul trouble</li>
+              <li>Player has already exceeded their usual minutes</li>
+              <li>Rotation changes mid-game</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* The Edge Algorithm */}
       <Card className="card-leather">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-display text-xl">
             <Calculator className="h-5 w-5 text-primary" />
-            The Edge Score Algorithm
+            Edge Score Algorithm
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="bg-muted/30 p-4 rounded-lg border border-border font-mono text-sm mb-6">
             <p className="text-primary font-semibold">
-              EDGE_SCORE = (PACE_RATIO x DATA_SCARCITY x GAME_TIMING) - VARIANCE_PENALTY
+              EDGE = (PACE_RATIO × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
             </p>
           </div>
 
@@ -83,8 +137,11 @@ export default function HowItWorksPage() {
               <p className="text-sm text-muted-foreground mb-2">
                 Measures how far ahead of the pregame line the player is tracking.
               </p>
-              <code className="bg-muted px-2 py-1 rounded text-xs">
-                PACE_RATIO = (current_stats / game_elapsed%) / pregame_line
+              <code className="bg-muted px-2 py-1 rounded text-xs block">
+                player_progress = minutes_played / expected_minutes
+              </code>
+              <code className="bg-muted px-2 py-1 rounded text-xs block mt-1">
+                PACE_RATIO = (current_stats / player_progress) / pregame_line
               </code>
             </div>
 
@@ -110,7 +167,7 @@ export default function HowItWorksPage() {
                 Early-game edges are more valuable. Decays from 1.0 to 0.5 as game progresses.
               </p>
               <code className="bg-muted px-2 py-1 rounded text-xs">
-                GAME_TIMING = 1 - (game_elapsed% x 0.5)
+                GAME_TIMING = 1 - (game_elapsed% × 0.5)
               </code>
             </div>
 
@@ -130,12 +187,78 @@ export default function HowItWorksPage() {
         </CardContent>
       </Card>
 
-      {/* Alert Thresholds */}
+      {/* Mateo Algorithm */}
+      <Card className="card-leather">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-xl">
+            <TrendingUp className="h-5 w-5 text-whiskey-500" />
+            Mateo Score Algorithm
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground mb-4">
+            A simplified pace-based approach that shows how far ahead or behind a player is.
+          </p>
+
+          <div className="bg-muted/30 p-4 rounded-lg border border-border font-mono text-sm mb-6">
+            <p className="text-whiskey-600 dark:text-whiskey-400 font-semibold">
+              % TARGET = current_stat / betting_line
+            </p>
+            <p className="text-whiskey-600 dark:text-whiskey-400 font-semibold mt-1">
+              MATEO = % TARGET / (minutes_played / expected_minutes)
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="destructive" className="text-xs">{"< 0.9"}</Badge>
+                <span className="font-medium text-sm">Behind</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Unlikely to hit the line at current pace.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/50 border border-border">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="secondary" className="text-xs">0.9 - 1.1</Badge>
+                <span className="font-medium text-sm">On Target</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tracking close to the line.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="forest" className="text-xs">1.1 - 1.5</Badge>
+                <span className="font-medium text-sm">Ahead</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                On pace to exceed the line.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-gold-500/10 border border-gold-500/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="gold" className="text-xs">{"> 1.5"}</Badge>
+                <span className="font-medium text-sm">Way Ahead</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Significantly exceeding expectations.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Edge Alert Thresholds */}
       <Card className="card-leather">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-display text-xl">
             <AlertTriangle className="h-5 w-5 text-whiskey-500" />
-            Alert Thresholds
+            Edge Alert Thresholds
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -195,9 +318,10 @@ export default function HowItWorksPage() {
           <div>
             <h3 className="font-semibold text-sm mb-2">Data Flow</h3>
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-              <li><strong>ESPN API</strong> provides real-time stats</li>
-              <li><strong>Pregame lines</strong> entered manually before games</li>
-              <li><strong>Edge calculation</strong> runs on every update</li>
+              <li><strong>BallDontLie API</strong> provides real-time stats + player props</li>
+              <li><strong>Minutes tracking</strong> from live box scores</li>
+              <li><strong>Season averages</strong> for expected minutes per player</li>
+              <li><strong>Edge + Mateo calculations</strong> run every 10 seconds</li>
               <li><strong>Alerts</strong> trigger when thresholds crossed</li>
             </ol>
           </div>
