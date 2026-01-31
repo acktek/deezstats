@@ -27,7 +27,7 @@ export async function POST() {
     for (const game of nbaGames) {
       try {
         const bdlGameId = parseInt(game.espnId);
-        const props = await bdlClient.getNBAPlayerProps({ game_ids: [bdlGameId] });
+        const props = await bdlClient.getNBAPlayerProps({ game_id: bdlGameId });
 
         for (const prop of props.data) {
           // Find or create player
