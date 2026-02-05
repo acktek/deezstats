@@ -39,19 +39,24 @@ interface GameCardProps {
   onPlayerClick?: (playerId: string) => void;
 }
 
+// Parse date string as local time to avoid UTC timezone shift
+// BDL API returns "YYYY-MM-DD" which JS interprets as UTC midnight,
+// causing it to show the previous day in US timezones
+function parseGameDate(dateStr: string): Date {
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+  }
+  return new Date(dateStr);
+}
+
 function formatGameTime(dateStr: string, status: string): string {
-  const date = new Date(dateStr);
+  const date = parseGameDate(dateStr);
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  const timeStr = date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
 
   if (status === "final") {
     return date.toLocaleDateString("en-US", {
@@ -61,16 +66,14 @@ function formatGameTime(dateStr: string, status: string): string {
   }
 
   if (isToday) {
-    return timeStr;
+    return "Today";
   } else if (isTomorrow) {
-    return `Tomorrow ${timeStr}`;
+    return "Tomorrow";
   } else {
     return date.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
     });
   }
 }

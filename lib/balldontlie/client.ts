@@ -299,6 +299,7 @@ export class BallDontLieClient {
 
   async getNBAPlayers(params?: {
     search?: string;
+    player_ids?: number[];
     team_ids?: number[];
     cursor?: number;
     per_page?: number;
@@ -348,6 +349,7 @@ export class BallDontLieClient {
 
   async getNFLPlayers(params?: {
     search?: string;
+    player_ids?: number[];
     team_ids?: number[];
     cursor?: number;
     per_page?: number;

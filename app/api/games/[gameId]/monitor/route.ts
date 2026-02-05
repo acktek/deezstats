@@ -309,26 +309,50 @@ export async function GET(
               });
               const existingPlayerMap = new Map(existingPlayers.map(p => [p.espnId, p]));
 
-              // For players not in DB, try to get their info from the prop data
-              // We'll use team info from the game itself
+              // Find player IDs not in our DB that we need to look up
+              const unknownPlayerIds = propPlayerIds
+                .filter(id => !existingPlayerMap.has(id))
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id));
+
+              // Fetch unknown players from BDL API in one batch call
+              const bdlPlayerMap = new Map<string, { name: string; team: string; position: string }>();
+              if (unknownPlayerIds.length > 0) {
+                try {
+                  const bdlPlayers = await bdlClient.getNBAPlayers({
+                    player_ids: unknownPlayerIds,
+                    per_page: 100,
+                  });
+                  for (const p of bdlPlayers.data) {
+                    bdlPlayerMap.set(String(p.id), {
+                      name: `${p.first_name} ${p.last_name}`,
+                      team: p.team?.full_name || "Unknown",
+                      position: p.position || "N/A",
+                    });
+                  }
+                } catch {
+                  // Silently fail - will show player IDs as fallback
+                }
+              }
+
               for (const playerId of propPlayerIds) {
                 const existingPlayer = existingPlayerMap.get(playerId);
-                const propInfo = propsPlayerInfoMap.get(playerId);
+                const bdlInfo = bdlPlayerMap.get(playerId);
                 if (existingPlayer) {
                   playerStatsMap.set(playerId, {
                     playerId,
                     playerName: existingPlayer.name,
-                    team: existingPlayer.team || propInfo?.team || "Unknown",
-                    position: existingPlayer.position || propInfo?.position || "N/A",
+                    team: existingPlayer.team || bdlInfo?.team || "Unknown",
+                    position: existingPlayer.position || bdlInfo?.position || "N/A",
                     minutesPlayed: 0,
                     stats: {},
                   });
-                } else if (propInfo) {
+                } else if (bdlInfo) {
                   playerStatsMap.set(playerId, {
                     playerId,
-                    playerName: propInfo.name,
-                    team: propInfo.team,
-                    position: propInfo.position,
+                    playerName: bdlInfo.name,
+                    team: bdlInfo.team,
+                    position: bdlInfo.position,
                     minutesPlayed: 0,
                     stats: {},
                   });
@@ -490,20 +514,58 @@ export async function GET(
             // SCHEDULED NFL GAME: populate playerStatsMap from props
             if (apiLinesMap.size > 0) {
               const propPlayerIds = Array.from(apiLinesMap.keys());
+
+              // Look up players in DB by espnId
               const existingPlayers = await db.query.players.findMany({
                 where: inArray(playersTable.espnId, propPlayerIds),
               });
               const existingPlayerMap = new Map(existingPlayers.map(p => [p.espnId, p]));
 
+              // Find player IDs not in our DB that we need to look up via BDL API
+              const unknownPlayerIds = propPlayerIds
+                .filter(id => !existingPlayerMap.has(id))
+                .map(id => parseInt(id.replace("nfl-", "")))
+                .filter(id => !isNaN(id));
+
+              // Fetch unknown players from BDL API in one batch call
+              const bdlPlayerMap = new Map<string, { name: string; team: string; position: string }>();
+              if (unknownPlayerIds.length > 0) {
+                try {
+                  const bdlPlayers = await bdlClient.getNFLPlayers({
+                    player_ids: unknownPlayerIds,
+                    per_page: 100,
+                  });
+                  for (const p of bdlPlayers.data) {
+                    bdlPlayerMap.set(`nfl-${p.id}`, {
+                      name: `${p.first_name} ${p.last_name}`,
+                      team: p.team?.full_name || "Unknown",
+                      position: p.position_abbreviation || p.position || "N/A",
+                    });
+                  }
+                } catch {
+                  // Silently fail - will use propsPlayerInfoMap as fallback
+                }
+              }
+
               for (const playerId of propPlayerIds) {
                 const existingPlayer = existingPlayerMap.get(playerId);
+                const bdlInfo = bdlPlayerMap.get(playerId);
                 const propInfo = propsPlayerInfoMap.get(playerId);
                 if (existingPlayer) {
                   playerStatsMap.set(playerId, {
                     playerId,
                     playerName: existingPlayer.name,
-                    team: existingPlayer.team || propInfo?.team || "Unknown",
-                    position: existingPlayer.position || propInfo?.position || "N/A",
+                    team: existingPlayer.team || bdlInfo?.team || propInfo?.team || "Unknown",
+                    position: existingPlayer.position || bdlInfo?.position || propInfo?.position || "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                } else if (bdlInfo) {
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: bdlInfo.name,
+                    team: bdlInfo.team,
+                    position: bdlInfo.position,
                     minutesPlayed: 0,
                     stats: {},
                   });
