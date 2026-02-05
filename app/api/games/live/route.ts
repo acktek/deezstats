@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bdlClient } from "@/lib/balldontlie";
 import { db, players, playerLines, games } from "@/lib/db";
 import { calculateEdgeScore } from "@/lib/algorithm";
+import { getTeamLogoUrl } from "@/lib/utils";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -116,10 +117,10 @@ export async function GET(request: NextRequest) {
               espnId: String(bdlGame.id),
               sport: "nba",
               homeTeam: bdlGame.home_team.full_name,
-              homeTeamLogo: `https://cdn.nba.com/logos/nba/${bdlGame.home_team.id}/global/L/logo.svg`,
+              homeTeamLogo: getTeamLogoUrl("nba", bdlGame.home_team.abbreviation),
               homeScore: bdlGame.home_team_score,
               awayTeam: bdlGame.visitor_team.full_name,
-              awayTeamLogo: `https://cdn.nba.com/logos/nba/${bdlGame.visitor_team.id}/global/L/logo.svg`,
+              awayTeamLogo: getTeamLogoUrl("nba", bdlGame.visitor_team.abbreviation),
               awayScore: bdlGame.visitor_team_score,
               status: gameStatus,
               period: bdlGame.period,
@@ -242,8 +243,10 @@ export async function GET(request: NextRequest) {
               espnId: `nfl-${bdlGame.id}`,
               sport: "nfl",
               homeTeam: bdlGame.home_team.full_name,
+              homeTeamLogo: getTeamLogoUrl("nfl", bdlGame.home_team.abbreviation),
               homeScore: bdlGame.home_team_score,
               awayTeam: bdlGame.visitor_team.full_name,
+              awayTeamLogo: getTeamLogoUrl("nfl", bdlGame.visitor_team.abbreviation),
               awayScore: bdlGame.visitor_team_score,
               status: gameStatus,
               period: bdlGame.quarter,

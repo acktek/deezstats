@@ -4,7 +4,7 @@ import { games, players as playersTable, playerLines, alerts } from "@/lib/db/sc
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
 import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
-import { getDateRangeUTC, getCurrentSeasonUTC, getNBAHeadshotUrl } from "@/lib/utils";
+import { getDateRangeUTC, getCurrentSeasonUTC, getNBAHeadshotUrl, getTeamLogoUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +129,9 @@ export async function GET(
     // Map to store betting lines fetched from API (playerId -> statType -> vendor lines array)
     const apiLinesMap = new Map<string, Map<string, VendorLine[]>>();
 
+    // Map to store player info from props (for pre-game when players aren't in box score)
+    const propsPlayerInfoMap = new Map<string, { name: string; team: string; position: string }>();
+
     if (dbGame.sport === "nba") {
       try {
         // Fetch games to get current status - use UTC date range to handle timezone differences
@@ -150,8 +153,8 @@ export async function GET(
           awayScore = bdlGame.visitor_team_score;
           homeTeamName = bdlGame.home_team.full_name;
           awayTeamName = bdlGame.visitor_team.full_name;
-          homeTeamLogo = `https://cdn.nba.com/logos/nba/${bdlGame.home_team.id}/global/L/logo.svg`;
-          awayTeamLogo = `https://cdn.nba.com/logos/nba/${bdlGame.visitor_team.id}/global/L/logo.svg`;
+          homeTeamLogo = getTeamLogoUrl("nba", bdlGame.home_team.abbreviation);
+          awayTeamLogo = getTeamLogoUrl("nba", bdlGame.visitor_team.abbreviation);
 
           // Calculate elapsed percent
           if (gameStatus === "final") {
@@ -200,13 +203,23 @@ export async function GET(
               };
 
               for (const prop of props.data) {
-                // V2 API uses player_id directly, not player.id
+                // V2 API may use player_id directly, or nested player.id
                 const propData = prop as { player_id?: number; line_value?: number; prop_type: string; line?: number; vendor?: string };
-                const playerId = String(propData.player_id);
+                const playerId = String(propData.player_id || prop.player?.id);
                 const statType = statTypeMap[prop.prop_type] || prop.prop_type;
                 // V2 API uses line_value instead of line
                 const lineValue = parseFloat(String(propData.line_value)) || prop.line || 0;
                 const vendor = prop.vendor || (propData as any).vendor || "unknown";
+
+                // Store player info from props for pre-game display
+                if (prop.player && !propsPlayerInfoMap.has(playerId)) {
+                  const p = prop.player as any;
+                  propsPlayerInfoMap.set(playerId, {
+                    name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || `Player #${playerId}`,
+                    team: p.team?.full_name || "Unknown",
+                    position: p.position || p.position_abbreviation || "N/A",
+                  });
+                }
 
                 if (!apiLinesMap.has(playerId)) {
                   apiLinesMap.set(playerId, new Map());
@@ -300,17 +313,26 @@ export async function GET(
               // We'll use team info from the game itself
               for (const playerId of propPlayerIds) {
                 const existingPlayer = existingPlayerMap.get(playerId);
+                const propInfo = propsPlayerInfoMap.get(playerId);
                 if (existingPlayer) {
                   playerStatsMap.set(playerId, {
                     playerId,
                     playerName: existingPlayer.name,
-                    team: existingPlayer.team || "Unknown",
-                    position: existingPlayer.position || "N/A",
+                    team: existingPlayer.team || propInfo?.team || "Unknown",
+                    position: existingPlayer.position || propInfo?.position || "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                } else if (propInfo) {
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: propInfo.name,
+                    team: propInfo.team,
+                    position: propInfo.position,
                     minutesPlayed: 0,
                     stats: {},
                   });
                 } else {
-                  // Player not in DB — will be added if they have DB lines
                   playerStatsMap.set(playerId, {
                     playerId,
                     playerName: `Player #${playerId}`,
@@ -380,6 +402,8 @@ export async function GET(
           awayScore = bdlGame.visitor_team_score;
           homeTeamName = bdlGame.home_team.full_name;
           awayTeamName = bdlGame.visitor_team.full_name;
+          homeTeamLogo = getTeamLogoUrl("nfl", bdlGame.home_team.abbreviation);
+          awayTeamLogo = getTeamLogoUrl("nfl", bdlGame.visitor_team.abbreviation);
 
           // Fetch NFL player props
           if (gameStatus !== "final") {
@@ -401,6 +425,16 @@ export async function GET(
                 const statType = statTypeMap[prop.prop_type];
                 if (!statType) continue;
                 const vendor = prop.vendor || "unknown";
+
+                // Store player info from props for pre-game display
+                if (prop.player && !propsPlayerInfoMap.has(playerId)) {
+                  const p = prop.player as any;
+                  propsPlayerInfoMap.set(playerId, {
+                    name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || `Player #${playerId}`,
+                    team: p.team?.full_name || "Unknown",
+                    position: p.position_abbreviation || p.position || "N/A",
+                  });
+                }
 
                 if (!apiLinesMap.has(playerId)) {
                   apiLinesMap.set(playerId, new Map());
@@ -463,12 +497,22 @@ export async function GET(
 
               for (const playerId of propPlayerIds) {
                 const existingPlayer = existingPlayerMap.get(playerId);
+                const propInfo = propsPlayerInfoMap.get(playerId);
                 if (existingPlayer) {
                   playerStatsMap.set(playerId, {
                     playerId,
                     playerName: existingPlayer.name,
-                    team: existingPlayer.team || "Unknown",
-                    position: existingPlayer.position || "N/A",
+                    team: existingPlayer.team || propInfo?.team || "Unknown",
+                    position: existingPlayer.position || propInfo?.position || "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                } else if (propInfo) {
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: propInfo.name,
+                    team: propInfo.team,
+                    position: propInfo.position,
                     minutesPlayed: 0,
                     stats: {},
                   });

@@ -71,3 +71,12 @@ export function getCurrentSeasonUTC(): number {
 export function getNBAHeadshotUrl(playerId: string | number): string {
   return `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png`;
 }
+
+/**
+ * Get team logo URL from ESPN CDN using team abbreviation.
+ * Works for both NBA and NFL teams.
+ * BallDontLie returns abbreviations (e.g., LAL, BOS, KC, BUF) on team objects.
+ */
+export function getTeamLogoUrl(sport: "nba" | "nfl", abbreviation: string): string {
+  return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${sport}/500/${abbreviation}.png`;
+}
