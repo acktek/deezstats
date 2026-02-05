@@ -63,3 +63,11 @@ export function getCurrentSeasonUTC(): number {
   // NBA/NFL seasons start in fall (September/October)
   return month >= 9 ? year : year - 1;
 }
+
+/**
+ * Get NBA player headshot URL from NBA.com CDN.
+ * Uses the BallDontLie player ID which maps to NBA.com player IDs.
+ */
+export function getNBAHeadshotUrl(playerId: string | number): string {
+  return `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png`;
+}

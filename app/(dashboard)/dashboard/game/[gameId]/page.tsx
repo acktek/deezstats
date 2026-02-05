@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+interface VendorLine {
+  vendor: string;
+  line: number;
+}
+
 interface MonitoringData {
   game: {
     id: string;
@@ -28,6 +33,7 @@ interface MonitoringData {
     lines: {
       statType: string;
       pregameLine: number;
+      vendorLines?: VendorLine[];
       currentValue: number;
       projectedPace: number;
       edgeScore: number;
@@ -153,6 +159,7 @@ export default function GameMonitoringPage() {
   }
 
   const isLive = data.game.status === "in_progress";
+  const isScheduled = data.game.status === "scheduled";
   const totalEdges = data.players.reduce(
     (sum, p) => sum + p.lines.filter((l) => l.edgeScore >= 1.5).length,
     0
@@ -160,6 +167,10 @@ export default function GameMonitoringPage() {
   const strongEdges = data.players.reduce(
     (sum, p) => sum + p.lines.filter((l) => l.edgeScore >= 2.0).length,
     0
+  );
+  const totalLines = data.players.reduce((sum, p) => sum + p.lines.length, 0);
+  const uniqueVendors = new Set(
+    data.players.flatMap(p => p.lines.flatMap(l => (l.vendorLines || []).map(vl => vl.vendor)))
   );
 
   return (
@@ -189,6 +200,12 @@ export default function GameMonitoringPage() {
               </span>
             </>
           )}
+          {uniqueVendors.size > 0 && (
+            <>
+              <span className="text-muted-foreground/50">|</span>
+              <span>{uniqueVendors.size} sportsbooks</span>
+            </>
+          )}
           {lastUpdated && (
             <>
               <span className="hidden sm:inline text-muted-foreground/50">|</span>
@@ -204,6 +221,21 @@ export default function GameMonitoringPage() {
         </div>
       )}
 
+      {/* Pre-game Summary */}
+      {isScheduled && data.players.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
+          <span>{data.players.length} players</span>
+          <span className="text-muted-foreground/50">|</span>
+          <span>{totalLines} lines</span>
+          {uniqueVendors.size > 0 && (
+            <>
+              <span className="text-muted-foreground/50">|</span>
+              <span>{uniqueVendors.size} sportsbooks</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Main Content: Table and Alerts */}
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr,300px] xl:grid-cols-[1fr,350px]">
         {/* Monitoring Table */}
@@ -212,6 +244,7 @@ export default function GameMonitoringPage() {
             players={data.players}
             homeTeam={data.game.homeTeam.name}
             awayTeam={data.game.awayTeam.name}
+            gameStatus={data.game.status}
           />
         </div>
 
@@ -225,10 +258,10 @@ export default function GameMonitoringPage() {
       {data.game.status === "scheduled" && data.players.length === 0 && (
         <div className="text-center py-12 border rounded-lg bg-muted/20">
           <p className="text-muted-foreground text-lg mb-2">
-            Game has not started yet
+            No player props available yet
           </p>
           <p className="text-muted-foreground text-sm">
-            Player stats and edges will appear once the game begins
+            Props and season averages will appear once sportsbooks publish lines
           </p>
         </div>
       )}

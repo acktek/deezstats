@@ -65,12 +65,14 @@ export async function POST() {
           const statType = statTypeMap[prop.prop_type];
           if (!statType) continue; // Skip unknown stat types
 
-          // Check if line already exists
+          // Check if line already exists (keyed by vendor for multi-sportsbook)
+          const propVendor = prop.vendor || "unknown";
           const existingLine = await db.query.playerLines.findFirst({
             where: and(
               eq(playerLines.playerId, player.id),
               eq(playerLines.gameId, game.id),
-              eq(playerLines.statType, statType)
+              eq(playerLines.statType, statType),
+              eq(playerLines.vendor, propVendor)
             ),
           });
 
@@ -89,6 +91,7 @@ export async function POST() {
               gameId: game.id,
               statType,
               pregameLine: prop.line,
+              vendor: propVendor,
               source: prop.vendor,
             });
             linesAdded++;
@@ -143,11 +146,14 @@ export async function POST() {
           const statType = statTypeMap[prop.prop_type as keyof typeof statTypeMap] as NFLStatType | undefined;
           if (!statType) continue; // Skip unknown stat types
 
+          // Keyed by vendor for multi-sportsbook support
+          const propVendor = prop.vendor || "unknown";
           const existingLine = await db.query.playerLines.findFirst({
             where: and(
               eq(playerLines.playerId, player.id),
               eq(playerLines.gameId, game.id),
-              eq(playerLines.statType, statType)
+              eq(playerLines.statType, statType),
+              eq(playerLines.vendor, propVendor)
             ),
           });
 
@@ -166,6 +172,7 @@ export async function POST() {
               gameId: game.id,
               statType,
               pregameLine: prop.line,
+              vendor: propVendor,
               source: prop.vendor,
             });
             linesAdded++;

@@ -126,6 +126,7 @@ export async function GET(
             gamesPlayed: dbPlayer?.gamesPlayed || 1,
             historicalStddev: dbPlayer?.historicalStddev || 0,
             isRookie: dbPlayer?.isRookie || false,
+            statType: line.statType,
           });
 
           edges.push({

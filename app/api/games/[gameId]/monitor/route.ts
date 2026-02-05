@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { games, playerLines, alerts } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { games, players as playersTable, playerLines, alerts } from "@/lib/db/schema";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
 import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
-import { getDateRangeUTC, getCurrentSeasonUTC } from "@/lib/utils";
+import { getDateRangeUTC, getCurrentSeasonUTC, getNBAHeadshotUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-// Helper to parse minutes string (e.g., "32:45" → 32.75)
+// Helper to parse minutes string (e.g., "32:45" -> 32.75)
 function parseMinutes(minStr: string | undefined): number {
   if (!minStr) return 0;
   const parts = minStr.split(":");
@@ -17,7 +17,18 @@ function parseMinutes(minStr: string | undefined): number {
   return minutes + seconds / 60;
 }
 
+// Select the primary (lowest) line from vendor lines — most conservative for over bets
+function selectPrimaryLine(vendorLines: { vendor: string; line: number }[]): number {
+  if (vendorLines.length === 0) return 0;
+  return Math.min(...vendorLines.map(vl => vl.line));
+}
+
 // Types for the monitoring response
+interface VendorLine {
+  vendor: string;
+  line: number;
+}
+
 interface MonitoringData {
   game: {
     id: string;
@@ -34,9 +45,11 @@ interface MonitoringData {
     name: string;
     team: string;
     position: string;
+    imageUrl?: string;
     lines: {
       statType: string;
       pregameLine: number;
+      vendorLines: VendorLine[];
       currentValue: number;
       projectedPace: number;
       edgeScore: number;
@@ -113,8 +126,8 @@ export async function GET(
       expectedMinutes?: number;
     }>();
 
-    // Map to store betting lines fetched from API (playerId -> statType -> line)
-    const apiLinesMap = new Map<string, Map<string, number>>();
+    // Map to store betting lines fetched from API (playerId -> statType -> vendor lines array)
+    const apiLinesMap = new Map<string, Map<string, VendorLine[]>>();
 
     if (dbGame.sport === "nba") {
       try {
@@ -188,16 +201,28 @@ export async function GET(
 
               for (const prop of props.data) {
                 // V2 API uses player_id directly, not player.id
-                const propData = prop as { player_id?: number; line_value?: number; prop_type: string; line?: number };
+                const propData = prop as { player_id?: number; line_value?: number; prop_type: string; line?: number; vendor?: string };
                 const playerId = String(propData.player_id);
                 const statType = statTypeMap[prop.prop_type] || prop.prop_type;
                 // V2 API uses line_value instead of line
                 const lineValue = parseFloat(String(propData.line_value)) || prop.line || 0;
+                const vendor = prop.vendor || (propData as any).vendor || "unknown";
 
                 if (!apiLinesMap.has(playerId)) {
                   apiLinesMap.set(playerId, new Map());
                 }
-                apiLinesMap.get(playerId)!.set(statType, lineValue);
+                const playerMap = apiLinesMap.get(playerId)!;
+                if (!playerMap.has(statType)) {
+                  playerMap.set(statType, []);
+                }
+                // Avoid duplicate vendor entries for same stat
+                const existingVendors = playerMap.get(statType)!;
+                const existingIdx = existingVendors.findIndex(v => v.vendor === vendor);
+                if (existingIdx >= 0) {
+                  existingVendors[existingIdx].line = lineValue;
+                } else {
+                  existingVendors.push({ vendor, line: lineValue });
+                }
               }
             } catch (propsError) {
               console.error("Error fetching NBA props:", propsError);
@@ -227,13 +252,11 @@ export async function GET(
                 });
               }
 
-              // Fetch season averages for all players in this game (API only accepts one at a time)
-              const playerIds = stats.data.map(ps => ps.player.id);
-              if (playerIds.length > 0) {
+              // Fetch season averages for all players in this game
+              const playerIdsForAvg = stats.data.map(ps => ps.player.id);
+              if (playerIdsForAvg.length > 0) {
                 const currentSeason = getCurrentSeasonUTC();
-
-                // Fetch in parallel for speed, limit to first 15 players to avoid rate limits
-                const playersToFetch = playerIds.slice(0, 15);
+                const playersToFetch = playerIdsForAvg.slice(0, 15);
                 const avgPromises = playersToFetch.map(async (playerId) => {
                   try {
                     const seasonAvgs = await bdlClient.getNBASeasonAverages({
@@ -248,6 +271,7 @@ export async function GET(
                         assists: avg.ast || 0,
                         steals: avg.stl || 0,
                         blocks: avg.blk || 0,
+                        three_pointers: (avg as any).fg3m || 0,
                         expectedMinutes: parseMinutes(avg.min),
                       });
                     }
@@ -255,11 +279,81 @@ export async function GET(
                     // Silently fail for individual player
                   }
                 });
-
                 await Promise.allSettled(avgPromises);
               }
             } catch (error) {
               console.error("Error fetching NBA stats:", error);
+            }
+          } else {
+            // SCHEDULED GAME: populate playerStatsMap from props so pre-game view works
+            if (apiLinesMap.size > 0) {
+              // Get unique player IDs from props
+              const propPlayerIds = Array.from(apiLinesMap.keys());
+
+              // Look up players in DB by espnId
+              const existingPlayers = await db.query.players.findMany({
+                where: inArray(playersTable.espnId, propPlayerIds),
+              });
+              const existingPlayerMap = new Map(existingPlayers.map(p => [p.espnId, p]));
+
+              // For players not in DB, try to get their info from the prop data
+              // We'll use team info from the game itself
+              for (const playerId of propPlayerIds) {
+                const existingPlayer = existingPlayerMap.get(playerId);
+                if (existingPlayer) {
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: existingPlayer.name,
+                    team: existingPlayer.team || "Unknown",
+                    position: existingPlayer.position || "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                } else {
+                  // Player not in DB — will be added if they have DB lines
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: `Player #${playerId}`,
+                    team: "Unknown",
+                    position: "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                }
+              }
+
+              // Fetch season averages for pre-game players
+              const currentSeason = getCurrentSeasonUTC();
+              const playersForAvg = propPlayerIds
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id))
+                .slice(0, 20);
+
+              if (playersForAvg.length > 0) {
+                const avgPromises = playersForAvg.map(async (playerId) => {
+                  try {
+                    const seasonAvgs = await bdlClient.getNBASeasonAverages({
+                      season: currentSeason,
+                      player_id: playerId,
+                    });
+                    if (seasonAvgs.data.length > 0) {
+                      const avg = seasonAvgs.data[0];
+                      seasonAveragesMap.set(String(avg.player_id), {
+                        points: avg.pts || 0,
+                        rebounds: avg.reb || 0,
+                        assists: avg.ast || 0,
+                        steals: avg.stl || 0,
+                        blocks: avg.blk || 0,
+                        three_pointers: (avg as any).fg3m || 0,
+                        expectedMinutes: parseMinutes(avg.min),
+                      });
+                    }
+                  } catch {
+                    // Silently fail for individual player
+                  }
+                });
+                await Promise.allSettled(avgPromises);
+              }
             }
           }
         }
@@ -287,6 +381,47 @@ export async function GET(
           homeTeamName = bdlGame.home_team.full_name;
           awayTeamName = bdlGame.visitor_team.full_name;
 
+          // Fetch NFL player props
+          if (gameStatus !== "final") {
+            try {
+              const props = await bdlClient.getNFLPlayerProps({ game_ids: [bdlGameId] });
+
+              const statTypeMap: Record<string, string> = {
+                passing_yards: "passing_yards",
+                rushing_yards: "rushing_yards",
+                receiving_yards: "receiving_yards",
+                receptions: "receptions",
+                passing_tds: "touchdowns",
+                rushing_tds: "touchdowns",
+                receiving_tds: "touchdowns",
+              };
+
+              for (const prop of props.data) {
+                const playerId = `nfl-${prop.player.id}`;
+                const statType = statTypeMap[prop.prop_type];
+                if (!statType) continue;
+                const vendor = prop.vendor || "unknown";
+
+                if (!apiLinesMap.has(playerId)) {
+                  apiLinesMap.set(playerId, new Map());
+                }
+                const playerMap = apiLinesMap.get(playerId)!;
+                if (!playerMap.has(statType)) {
+                  playerMap.set(statType, []);
+                }
+                const existingVendors = playerMap.get(statType)!;
+                const existingIdx = existingVendors.findIndex(v => v.vendor === vendor);
+                if (existingIdx >= 0) {
+                  existingVendors[existingIdx].line = prop.line;
+                } else {
+                  existingVendors.push({ vendor, line: prop.line });
+                }
+              }
+            } catch (propsError) {
+              console.error("Error fetching NFL props:", propsError);
+            }
+          }
+
           if (gameStatus === "final") {
             gameElapsedPercent = 100;
           } else if (gameStatus === "in_progress" && bdlGame.quarter > 0) {
@@ -304,7 +439,7 @@ export async function GET(
                   playerName: `${ps.player.first_name} ${ps.player.last_name}`,
                   team: ps.team.full_name,
                   position: ps.player.position_abbreviation || "N/A",
-                  minutesPlayed: 0, // NFL doesn't track minutes the same way
+                  minutesPlayed: 0,
                   stats: {
                     passing_yards: ps.passing_yards || 0,
                     rushing_yards: ps.rushing_yards || 0,
@@ -317,6 +452,38 @@ export async function GET(
             } catch (error) {
               console.error("Error fetching NFL stats:", error);
             }
+          } else {
+            // SCHEDULED NFL GAME: populate playerStatsMap from props
+            if (apiLinesMap.size > 0) {
+              const propPlayerIds = Array.from(apiLinesMap.keys());
+              const existingPlayers = await db.query.players.findMany({
+                where: inArray(playersTable.espnId, propPlayerIds),
+              });
+              const existingPlayerMap = new Map(existingPlayers.map(p => [p.espnId, p]));
+
+              for (const playerId of propPlayerIds) {
+                const existingPlayer = existingPlayerMap.get(playerId);
+                if (existingPlayer) {
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: existingPlayer.name,
+                    team: existingPlayer.team || "Unknown",
+                    position: existingPlayer.position || "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                } else {
+                  playerStatsMap.set(playerId, {
+                    playerId,
+                    playerName: `Player #${playerId.replace("nfl-", "")}`,
+                    team: "Unknown",
+                    position: "N/A",
+                    minutesPlayed: 0,
+                    stats: {},
+                  });
+                }
+              }
+            }
           }
         }
       } catch (error) {
@@ -324,7 +491,7 @@ export async function GET(
       }
     }
 
-    // Get player lines from database
+    // Get player lines from database (now includes vendor)
     const lines = await db.query.playerLines.findMany({
       where: eq(playerLines.gameId, dbGame.id),
     });
@@ -336,52 +503,78 @@ export async function GET(
         })
       : [];
 
-    // Build player monitoring data - show ALL players from box score
+    // Build player monitoring data - show ALL players from box score + props
     const monitoringPlayers: MonitoringData["players"] = [];
 
     for (const [bdlPlayerId, playerData] of playerStatsMap) {
-      // Find if this player has lines configured
+      // Find if this player has lines configured in DB
       const dbPlayer = dbPlayers.find((p) => p.espnId === bdlPlayerId);
-      const playerLinesList = dbPlayer
+      const dbLinesList = dbPlayer
         ? lines.filter((l) => l.playerId === dbPlayer.id)
         : [];
 
       // Get season averages for this player
       const playerSeasonAvgs = seasonAveragesMap.get(bdlPlayerId);
 
-      // Build lines array - show configured lines OR show all stats as lines
-      const playerLines: MonitoringData["players"][0]["lines"] = [];
+      // Get API lines for this player
+      const apiPlayerLines = apiLinesMap.get(bdlPlayerId);
 
-      if (playerLinesList.length > 0) {
-        // Player has configured lines - use those
-        for (const line of playerLinesList) {
-          const currentValue = playerData.stats[line.statType] || 0;
+      // Build lines array
+      const playerLinesResult: MonitoringData["players"][0]["lines"] = [];
+
+      // Group DB lines by statType to build vendorLines
+      const dbLinesByStatType = new Map<string, typeof dbLinesList>();
+      for (const line of dbLinesList) {
+        if (!dbLinesByStatType.has(line.statType)) {
+          dbLinesByStatType.set(line.statType, []);
+        }
+        dbLinesByStatType.get(line.statType)!.push(line);
+      }
+
+      if (dbLinesByStatType.size > 0) {
+        // Player has configured lines in DB - use those
+        for (const [statType, statLines] of dbLinesByStatType) {
+          // Build vendorLines from DB lines for this stat
+          const vendorLines: VendorLine[] = statLines.map(l => ({
+            vendor: l.vendor || "unknown",
+            line: l.pregameLine,
+          }));
+
+          // Also merge in API lines not already in DB
+          const apiStatLines = apiPlayerLines?.get(statType) || [];
+          for (const apiLine of apiStatLines) {
+            if (!vendorLines.some(vl => vl.vendor === apiLine.vendor)) {
+              vendorLines.push(apiLine);
+            }
+          }
+
+          const primaryLine = selectPrimaryLine(vendorLines);
+          const currentValue = playerData.stats[statType] || 0;
           let edgeScore = 0;
           let mateoScore = 0;
           let pace = 0;
 
           if (currentValue > 0 && gameElapsedPercent > 0) {
-            // Get minutes data for more accurate pace calculation
             const minutesPlayed = playerData.minutesPlayed;
             const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
 
             const result = calculateEdgeScore({
               currentValue,
               gameElapsedPercent,
-              pregameLine: line.pregameLine,
+              pregameLine: primaryLine,
               gamesPlayed: dbPlayer?.gamesPlayed || 10,
               historicalStddev: dbPlayer?.historicalStddev || 0,
               isRookie: dbPlayer?.isRookie || false,
               minutesPlayed,
               expectedMinutes,
+              statType,
             });
             edgeScore = result.edgeScore;
             pace = result.pace;
 
-            // Calculate Mateo score
             const mateoResult = calculateMateoScore({
               currentValue,
-              pregameLine: line.pregameLine,
+              pregameLine: primaryLine,
               gameElapsedPercent,
               minutesPlayed,
               expectedMinutes,
@@ -391,12 +584,13 @@ export async function GET(
 
           // Get season average for this stat type
           const seasonAvg = playerSeasonAvgs
-            ? (playerSeasonAvgs as Record<string, number>)[line.statType] || null
+            ? (playerSeasonAvgs as Record<string, number>)[statType] ?? null
             : null;
 
-          playerLines.push({
-            statType: line.statType,
-            pregameLine: line.pregameLine,
+          playerLinesResult.push({
+            statType,
+            pregameLine: primaryLine,
+            vendorLines,
             currentValue,
             projectedPace: pace,
             edgeScore,
@@ -404,53 +598,82 @@ export async function GET(
             seasonAverage: seasonAvg,
           });
         }
-      } else {
-        // No DB lines - use API-fetched lines if available, otherwise show stats
-        const apiPlayerLines = apiLinesMap.get(bdlPlayerId);
+      } else if (apiPlayerLines && apiPlayerLines.size > 0) {
+        // No DB lines but have API lines — use those
+        for (const [statType, vendorLines] of apiPlayerLines) {
+          const primaryLine = selectPrimaryLine(vendorLines);
+          const currentValue = playerData.stats[statType] || 0;
 
-        for (const [statType, value] of Object.entries(playerData.stats)) {
-          // Get API line for this stat if available
-          const apiLine = apiPlayerLines?.get(statType) || 0;
-
-          // Get season average for this stat type
           const seasonAvg = playerSeasonAvgs
-            ? (playerSeasonAvgs as Record<string, number>)[statType] || null
+            ? (playerSeasonAvgs as Record<string, number>)[statType] ?? null
             : null;
 
-          // Calculate edge if we have a line and current value
           let edgeScore = 0;
           let mateoScore = 0;
           let pace = 0;
 
-          // Get minutes data for more accurate pace calculation
           const minutesPlayed = playerData.minutesPlayed;
           const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
 
-          if (value > 0 && apiLine > 0 && gameElapsedPercent > 0) {
+          if (currentValue > 0 && primaryLine > 0 && gameElapsedPercent > 0) {
             const result = calculateEdgeScore({
-              currentValue: value,
+              currentValue,
               gameElapsedPercent,
-              pregameLine: apiLine,
+              pregameLine: primaryLine,
               gamesPlayed: 10,
               historicalStddev: 0,
               isRookie: false,
               minutesPlayed,
               expectedMinutes,
+              statType,
             });
             edgeScore = result.edgeScore;
             pace = result.pace;
 
-            // Calculate Mateo score
             const mateoResult = calculateMateoScore({
-              currentValue: value,
-              pregameLine: apiLine,
+              currentValue,
+              pregameLine: primaryLine,
               gameElapsedPercent,
               minutesPlayed,
               expectedMinutes,
             });
             mateoScore = mateoResult.pacePercent;
-          } else if (value > 0 && gameElapsedPercent > 0) {
-            // If we have minutes data, use it for pace calculation
+          } else if (currentValue > 0 && gameElapsedPercent > 0) {
+            if (minutesPlayed && expectedMinutes && expectedMinutes > 0) {
+              const progress = minutesPlayed / expectedMinutes;
+              pace = progress > 0 ? currentValue / progress : 0;
+            } else {
+              pace = (currentValue / gameElapsedPercent) * 100;
+            }
+          }
+
+          if (currentValue > 0 || primaryLine > 0) {
+            playerLinesResult.push({
+              statType,
+              pregameLine: primaryLine,
+              vendorLines,
+              currentValue,
+              projectedPace: pace,
+              edgeScore,
+              mateoScore,
+              seasonAverage: seasonAvg,
+            });
+          }
+        }
+      } else {
+        // No DB lines and no API lines — show raw stats (live/final games)
+        for (const [statType, value] of Object.entries(playerData.stats)) {
+          if (value <= 0) continue;
+
+          const seasonAvg = playerSeasonAvgs
+            ? (playerSeasonAvgs as Record<string, number>)[statType] ?? null
+            : null;
+
+          let pace = 0;
+          const minutesPlayed = playerData.minutesPlayed;
+          const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
+
+          if (value > 0 && gameElapsedPercent > 0) {
             if (minutesPlayed && expectedMinutes && expectedMinutes > 0) {
               const progress = minutesPlayed / expectedMinutes;
               pace = progress > 0 ? value / progress : 0;
@@ -459,33 +682,35 @@ export async function GET(
             }
           }
 
-          // Only show stats that have value OR have a line
-          if (value > 0 || apiLine > 0) {
-            playerLines.push({
-              statType,
-              pregameLine: apiLine,
-              currentValue: value,
-              projectedPace: pace,
-              edgeScore,
-              mateoScore,
-              seasonAverage: seasonAvg,
-            });
-          }
+          playerLinesResult.push({
+            statType,
+            pregameLine: 0,
+            vendorLines: [],
+            currentValue: value,
+            projectedPace: pace,
+            edgeScore: 0,
+            mateoScore: 0,
+            seasonAverage: seasonAvg,
+          });
         }
       }
 
-      if (playerLines.length > 0) {
+      if (playerLinesResult.length > 0) {
+        // Generate headshot URL for NBA players using the BDL player ID
+        const imageUrl = dbGame.sport === "nba" ? getNBAHeadshotUrl(bdlPlayerId) : undefined;
+
         monitoringPlayers.push({
           id: dbPlayer?.id || bdlPlayerId,
           name: playerData.playerName,
           team: playerData.team,
           position: playerData.position,
-          lines: playerLines,
+          imageUrl,
+          lines: playerLinesResult,
         });
       }
     }
 
-    // Sort players: those with edges first, then by total stats
+    // Sort players: those with edges first, then by total stats, then by line count
     monitoringPlayers.sort((a, b) => {
       const aMaxEdge = Math.max(0, ...a.lines.map((l) => l.edgeScore));
       const bMaxEdge = Math.max(0, ...b.lines.map((l) => l.edgeScore));
@@ -493,7 +718,9 @@ export async function GET(
 
       const aTotal = a.lines.reduce((sum, l) => sum + l.currentValue, 0);
       const bTotal = b.lines.reduce((sum, l) => sum + l.currentValue, 0);
-      return bTotal - aTotal;
+      if (aTotal !== bTotal) return bTotal - aTotal;
+
+      return b.lines.length - a.lines.length;
     });
 
     // Fetch alerts for this game

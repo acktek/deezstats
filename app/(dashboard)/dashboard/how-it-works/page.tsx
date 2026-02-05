@@ -124,7 +124,10 @@ export default function HowItWorksPage() {
         <CardContent>
           <div className="bg-muted/30 p-4 rounded-lg border border-border font-mono text-sm mb-6">
             <p className="text-primary font-semibold">
-              EDGE = (PACE_RATIO × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
+              EDGE = (ADJUSTED_PACE_RATIO × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
+            </p>
+            <p className="text-muted-foreground text-xs mt-2">
+              where ADJUSTED_PACE_RATIO = PACE_RATIO / STAT_DAMPENING
             </p>
           </div>
 
@@ -183,6 +186,75 @@ export default function HowItWorksPage() {
                 VARIANCE_PENALTY = historical_stddev / pregame_line
               </code>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stat-Type Dampening */}
+      <Card className="card-leather border-whiskey-400/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-xl">
+            <BarChart3 className="h-5 w-5 text-whiskey-500" />
+            Stat-Type Dampening (New)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>
+            Not all stats are created equal. A player with <strong>1 steal</strong> at
+            20% game time projects to 5 steals&mdash;but that&apos;s often noise, not signal.
+            Low-volume stats (steals, blocks, 3PM) have high variance relative to their lines.
+          </p>
+
+          <div className="bg-muted/30 p-4 rounded-lg border border-border">
+            <p className="font-semibold text-whiskey-600 dark:text-whiskey-400 mb-2">
+              The Problem:
+            </p>
+            <p className="text-sm text-muted-foreground">
+              A 1.5 steals line means 1 steal = 67% of the line. One lucky play early
+              can make the algorithm think they&apos;re on pace for a career game.
+              Compare to points: 1 point on a 22.5 line = 4% of the line.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Dampening Factors by Stat Type:</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="flex justify-between p-2 rounded bg-muted/30 text-sm">
+                <span>Points</span>
+                <Badge variant="secondary">1.0x (baseline)</Badge>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-muted/30 text-sm">
+                <span>Rebounds</span>
+                <Badge variant="secondary">1.15x</Badge>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-muted/30 text-sm">
+                <span>Assists</span>
+                <Badge variant="secondary">1.25x</Badge>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
+                <span>3-Pointers</span>
+                <Badge variant="whiskey">1.6x</Badge>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
+                <span>Steals</span>
+                <Badge variant="whiskey">2.0x</Badge>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
+                <span>Blocks</span>
+                <Badge variant="whiskey">2.0x</Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-forest-500/10 p-4 rounded-lg border border-forest-500/20">
+            <p className="font-semibold text-forest-600 dark:text-forest-400 mb-2">
+              Time-Based Fade:
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Dampening is strongest early in the game and fades as the game progresses.
+              At 0% elapsed: full dampening. At 100% elapsed: no dampening.
+              This means late-game projections for steals/blocks are trusted more.
+            </p>
           </div>
         </CardContent>
       </Card>

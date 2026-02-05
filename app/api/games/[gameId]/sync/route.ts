@@ -128,6 +128,7 @@ export async function POST(
                 gamesPlayed: player.gamesPlayed,
                 historicalStddev: player.historicalStddev || 0,
                 isRookie: player.isRookie,
+                statType: line.statType,
               });
 
               await db.insert(liveStats).values({
@@ -256,6 +257,7 @@ export async function POST(
                 gamesPlayed: player.gamesPlayed,
                 historicalStddev: player.historicalStddev || 0,
                 isRookie: player.isRookie,
+                statType: line.statType,
               });
 
               await db.insert(liveStats).values({

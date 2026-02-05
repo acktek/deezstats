@@ -181,6 +181,7 @@ export async function GET(request: NextRequest) {
                       gamesPlayed: dbPlayer.gamesPlayed,
                       historicalStddev: dbPlayer.historicalStddev || 0,
                       isRookie: dbPlayer.isRookie,
+                      statType: line.statType,
                     });
 
                     if (result.edgeScore >= threshold) {
@@ -297,6 +298,7 @@ export async function GET(request: NextRequest) {
                       gamesPlayed: dbPlayer.gamesPlayed,
                       historicalStddev: dbPlayer.historicalStddev || 0,
                       isRookie: dbPlayer.isRookie,
+                      statType: line.statType,
                     });
 
                     if (result.edgeScore >= threshold) {

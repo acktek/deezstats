@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 import {
   Table,
   TableBody,
@@ -20,17 +21,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Search,
   TrendingUp,
+  User,
 } from "lucide-react";
 import { cn, getEdgeClass } from "@/lib/utils";
+
+interface VendorLine {
+  vendor: string;
+  line: number;
+}
 
 interface PlayerLine {
   statType: string;
   pregameLine: number;
+  vendorLines?: VendorLine[];
   currentValue: number;
   projectedPace: number;
   edgeScore: number;
@@ -43,6 +56,7 @@ interface MonitoringPlayer {
   name: string;
   team: string;
   position: string;
+  imageUrl?: string;
   lines: PlayerLine[];
 }
 
@@ -50,6 +64,7 @@ interface MonitoringTableProps {
   players: MonitoringPlayer[];
   homeTeam: string;
   awayTeam: string;
+  gameStatus?: "scheduled" | "in_progress" | "final" | "postponed";
 }
 
 type SortField = "name" | "team" | "statType" | "line" | "current" | "pace" | "edge" | "mateo" | "seasonAvg";
@@ -69,14 +84,38 @@ const statLabels: Record<string, string> = {
   blocks: "Blocks",
 };
 
+const vendorAbbreviations: Record<string, string> = {
+  draftkings: "DK",
+  fanduel: "FD",
+  caesars: "CZR",
+  betrivers: "BR",
+  betway: "BW",
+  ballybet: "BB",
+  betparx: "BP",
+  rebet: "RB",
+  bovada: "BOV",
+  bet365: "365",
+  pointsbet: "PB",
+  williamhill: "WH",
+  mgm: "MGM",
+  betmgm: "MGM",
+  unknown: "??",
+};
+
+function getVendorAbbr(vendor: string): string {
+  return vendorAbbreviations[vendor.toLowerCase()] || vendor.substring(0, 3).toUpperCase();
+}
+
 // Flatten player data into rows for the table
-interface TableRow {
+interface TableRowData {
   playerId: string;
   playerName: string;
   team: string;
   position: string;
+  imageUrl?: string;
   statType: string;
   pregameLine: number;
+  vendorLines: VendorLine[];
   currentValue: number;
   projectedPace: number;
   edgeScore: number;
@@ -84,7 +123,7 @@ interface TableRow {
   seasonAverage: number | null;
 }
 
-export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTableProps) {
+export function MonitoringTable({ players, homeTeam, awayTeam, gameStatus }: MonitoringTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState<"all" | "home" | "away">("all");
   const [statFilter, setStatFilter] = useState<string>("all");
@@ -92,9 +131,11 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
   const [sortField, setSortField] = useState<SortField>("edge");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
+  const isScheduled = gameStatus === "scheduled";
+
   // Flatten players into rows
-  const rows: TableRow[] = useMemo(() => {
-    const result: TableRow[] = [];
+  const rows: TableRowData[] = useMemo(() => {
+    const result: TableRowData[] = [];
     for (const player of players) {
       for (const line of player.lines) {
         result.push({
@@ -102,8 +143,10 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
           playerName: player.name,
           team: player.team,
           position: player.position,
+          imageUrl: player.imageUrl,
           statType: line.statType,
           pregameLine: line.pregameLine,
+          vendorLines: line.vendorLines || [],
           currentValue: line.currentValue,
           projectedPace: line.projectedPace,
           edgeScore: line.edgeScore,
@@ -362,11 +405,35 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
                   className={cn(row.edgeScore >= 2.0 && "bg-primary/5")}
                 >
                   <TableCell className="sticky left-0 bg-background z-10">
-                    <div>
-                      <span className="font-medium text-sm sm:text-base">{row.playerName}</span>
-                      <div className="text-xs text-muted-foreground">
-                        <span>{row.position}</span>
-                        <span className="sm:hidden"> - {row.team}</span>
+                    <div className="flex items-center gap-2">
+                      {row.imageUrl ? (
+                        <div className="relative w-8 h-8 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                          <Image
+                            src={row.imageUrl}
+                            alt={row.playerName}
+                            fill
+                            className="object-cover object-top"
+                            sizes="32px"
+                            onError={(e) => {
+                              // Hide broken image and show fallback
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-medium text-sm sm:text-base">{row.playerName}</span>
+                        <div className="text-xs text-muted-foreground">
+                          <span>{row.position}</span>
+                          <span className="sm:hidden"> - {row.team}</span>
+                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -377,26 +444,74 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {row.pregameLine}
+                    {row.pregameLine > 0 ? (
+                      row.vendorLines.length > 1 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="inline-flex flex-col items-end gap-0.5 cursor-pointer hover:opacity-80 transition-opacity">
+                              <span>{row.pregameLine}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {row.vendorLines.length} books
+                              </span>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-48 p-3" align="end">
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-muted-foreground mb-2">Sportsbook Lines</p>
+                              {row.vendorLines
+                                .slice()
+                                .sort((a, b) => a.line - b.line)
+                                .map((vl, i) => (
+                                  <div key={i} className="flex items-center justify-between text-sm">
+                                    <span className="font-mono text-xs text-muted-foreground">
+                                      {getVendorAbbr(vl.vendor)}
+                                    </span>
+                                    <span className={cn(
+                                      "font-mono",
+                                      vl.line === row.pregameLine && "font-bold text-primary"
+                                    )}>
+                                      {vl.line}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span>{row.pregameLine}</span>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-mono font-medium text-sm">
-                    {row.currentValue}
+                    {isScheduled ? (
+                      <span className="text-muted-foreground">-</span>
+                    ) : (
+                      row.currentValue
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-right font-mono">
-                    <span
-                      className={cn(
-                        row.projectedPace > row.pregameLine
-                          ? "text-green-600 dark:text-green-400"
-                          : row.projectedPace < row.pregameLine
-                            ? "text-red-600 dark:text-red-400"
-                            : ""
-                      )}
-                    >
-                      {row.projectedPace > 0 ? row.projectedPace.toFixed(1) : "-"}
-                    </span>
+                    {isScheduled ? (
+                      <span className="text-muted-foreground">-</span>
+                    ) : (
+                      <span
+                        className={cn(
+                          row.projectedPace > row.pregameLine
+                            ? "text-green-600 dark:text-green-400"
+                            : row.projectedPace < row.pregameLine
+                              ? "text-red-600 dark:text-red-400"
+                              : ""
+                        )}
+                      >
+                        {row.projectedPace > 0 ? row.projectedPace.toFixed(1) : "-"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {row.edgeScore > 0 ? (
+                    {isScheduled ? (
+                      <span className="text-muted-foreground">-</span>
+                    ) : row.edgeScore > 0 ? (
                       <div className="flex items-center justify-end gap-1">
                         <TrendingUp
                           className={cn(
@@ -421,7 +536,9 @@ export function MonitoringTable({ players, homeTeam, awayTeam }: MonitoringTable
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {row.mateoScore > 0 ? (
+                    {isScheduled ? (
+                      <span className="text-muted-foreground">-</span>
+                    ) : row.mateoScore > 0 ? (
                       <Badge
                         variant="outline"
                         className={cn(

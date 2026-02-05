@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
                     gamesPlayed: dbPlayer.gamesPlayed,
                     historicalStddev: dbPlayer.historicalStddev || 0,
                     isRookie: dbPlayer.isRookie,
+                    statType: line.statType,
                   });
 
                   await db.insert(liveStats).values({
@@ -211,12 +212,14 @@ export async function GET(request: NextRequest) {
               const statType = statTypeMap[prop.prop_type];
               if (!statType) continue; // Skip unknown stat types
 
-              // Upsert line
+              // Upsert line (keyed by vendor for multi-sportsbook support)
+              const propVendor = prop.vendor || "unknown";
               const existingLine = await db.query.playerLines.findFirst({
                 where: and(
                   eq(playerLines.playerId, dbPlayer.id),
                   eq(playerLines.gameId, dbGame.id),
-                  eq(playerLines.statType, statType)
+                  eq(playerLines.statType, statType),
+                  eq(playerLines.vendor, propVendor)
                 ),
               });
 
@@ -231,6 +234,7 @@ export async function GET(request: NextRequest) {
                   gameId: dbGame.id,
                   statType,
                   pregameLine: prop.line,
+                  vendor: propVendor,
                   source: prop.vendor,
                 });
               }
@@ -338,6 +342,7 @@ export async function GET(request: NextRequest) {
                     gamesPlayed: dbPlayer.gamesPlayed,
                     historicalStddev: dbPlayer.historicalStddev || 0,
                     isRookie: dbPlayer.isRookie,
+                    statType: line.statType,
                   });
 
                   await db.insert(liveStats).values({
@@ -405,11 +410,14 @@ export async function GET(request: NextRequest) {
               const statType = statTypeMap[prop.prop_type];
               if (!statType) continue; // Skip unknown stat types
 
+              // Upsert line (keyed by vendor for multi-sportsbook support)
+              const propVendor = prop.vendor || "unknown";
               const existingLine = await db.query.playerLines.findFirst({
                 where: and(
                   eq(playerLines.playerId, dbPlayer.id),
                   eq(playerLines.gameId, dbGame.id),
-                  eq(playerLines.statType, statType)
+                  eq(playerLines.statType, statType),
+                  eq(playerLines.vendor, propVendor)
                 ),
               });
 
@@ -424,6 +432,7 @@ export async function GET(request: NextRequest) {
                   gameId: dbGame.id,
                   statType,
                   pregameLine: prop.line,
+                  vendor: propVendor,
                   source: prop.vendor,
                 });
               }

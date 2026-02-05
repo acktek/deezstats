@@ -8,6 +8,7 @@ import {
   boolean,
   primaryKey,
   pgEnum,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -157,9 +158,17 @@ export const playerLines = pgTable("player_lines", {
   statType: statTypeEnum("stat_type").notNull(),
   pregameLine: real("pregame_line").notNull(),
   currentLine: real("current_line"),
+  vendor: varchar("vendor", { length: 50 }).notNull().default("unknown"),
   source: varchar("source", { length: 100 }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("player_lines_player_game_stat_vendor_idx").on(
+    table.playerId,
+    table.gameId,
+    table.statType,
+    table.vendor
+  ),
+]);
 
 // ==================== LIVE STATS ====================
 
