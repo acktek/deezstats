@@ -183,6 +183,10 @@ export async function GET(request: NextRequest) {
                       historicalStddev: dbPlayer.historicalStddev || 0,
                       isRookie: dbPlayer.isRookie,
                       statType: line.statType,
+                      scoreDifferential: Math.abs(bdlGame.home_team_score - bdlGame.visitor_team_score),
+                      period: bdlGame.period,
+                      personalFouls: ps.pf || 0,
+                      sport: "nba",
                     });
 
                     if (result.edgeScore >= threshold) {
@@ -302,6 +306,9 @@ export async function GET(request: NextRequest) {
                       historicalStddev: dbPlayer.historicalStddev || 0,
                       isRookie: dbPlayer.isRookie,
                       statType: line.statType,
+                      scoreDifferential: Math.abs(bdlGame.home_team_score - bdlGame.visitor_team_score),
+                      period: bdlGame.quarter,
+                      sport: "nfl",
                     });
 
                     if (result.edgeScore >= threshold) {

@@ -1,49 +1,35 @@
 /**
- * Edge Detection Algorithm for Live Betting
+ * Edge Detection Algorithm v2 for Live Betting
  *
  * The core thesis: Sportsbooks anchor live lines to historical data.
  * For players with limited sample sizes (rookies, role players, early-season),
  * their adjustments lag behind reality.
  *
- * EDGE_SCORE = (ADJUSTED_PACE_RATIO × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
+ * EDGE = (BAYESIAN_PACE × POISSON_CONFIDENCE × USAGE_MULT × PACE_NORM × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
  *
- * Where:
- * - PACE_RATIO = (current_stats / player_progress%) / pregame_line
- * - ADJUSTED_PACE_RATIO = PACE_RATIO / STAT_DAMPENING (see below)
- * - player_progress% = minutes_played / expected_minutes (if available)
- *                    = game_elapsed% (fallback)
- * - DATA_SCARCITY = 1 + (1 / sqrt(games_played + 1))
- * - GAME_TIMING = 1 - (game_elapsed% × 0.5)
- * - VARIANCE_PENALTY = historical_stddev / pregame_line
- *
- * STAT_DAMPENING accounts for low-volume stats (steals, blocks) being noisy:
- * - Early game: dampening is high (don't trust 1 steal = pace for 5)
- * - Late game: dampening fades as we have more data
- * - High-volume stats (points) have minimal dampening
- *
- * Using minutes played instead of game elapsed prevents false positives when:
- * - Player is sitting due to foul trouble
- * - Blowout game (starters benched early)
- * - Player has already played more than their usual minutes
+ * Key improvements over v1:
+ * - Bayesian pace projection blending season avg with live pace
+ * - Poisson confidence for rare events (steals, blocks, 3PT, TDs)
+ * - Blowout detection reduces effective expected minutes
+ * - Foul trouble detection reduces effective expected minutes (NBA)
+ * - Sigmoid dampening (fades more naturally than linear)
+ * - Exponential game timing (early-game value decays faster)
+ * - Usage rate multiplier (NBA advanced stats)
+ * - Game pace normalization (NBA advanced stats)
  */
 
 /**
  * Stat-type dampening factors for early-game noise reduction.
  * Higher values = more dampening = less trust in early projections.
- *
- * Rationale:
- * - Points accumulate consistently, 8 pts in Q1 is meaningful signal
- * - Steals/blocks are opportunistic, 1 early steal ≠ pace for 4
- * - 3-pointers are streaky, can go cold after hot start
  */
 const STAT_DAMPENING: Record<string, number> = {
-  // NBA - lower volume stats need more dampening
+  // NBA
   points: 1.0,          // reliable accumulator
-  rebounds: 1.15,       // somewhat consistent
-  assists: 1.25,        // playmaking can be streaky
-  three_pointers: 1.6,  // very streaky (hot/cold)
-  steals: 2.0,          // highly opportunistic, noisy
-  blocks: 2.0,          // highly opportunistic, noisy
+  rebounds: 1.3,        // more bursty than assumed
+  assists: 1.2,         // fairly steady for playmakers
+  three_pointers: 2.0,  // hot shooting rarely sustains
+  steals: 2.5,          // Poisson events
+  blocks: 2.5,          // Poisson events
 
   // NFL
   passing_yards: 1.0,   // accumulates steadily
@@ -53,6 +39,11 @@ const STAT_DAMPENING: Record<string, number> = {
   touchdowns: 2.0,      // rare events, very noisy
 };
 
+/** Stat types that are rare/discrete events suitable for Poisson modeling */
+const POISSON_STAT_TYPES = new Set([
+  "steals", "blocks", "three_pointers", "touchdowns",
+]);
+
 export interface EdgeInput {
   currentValue: number;
   gameElapsedPercent: number;
@@ -60,11 +51,17 @@ export interface EdgeInput {
   gamesPlayed: number;
   historicalStddev?: number;
   isRookie?: boolean;
-  // Minutes-based pace (more accurate than game elapsed)
-  minutesPlayed?: number;      // Current minutes played (e.g., 24.5)
-  expectedMinutes?: number;    // Season avg minutes per game (e.g., 32)
-  // Stat type for dampening calculation
-  statType?: string;           // e.g., "points", "steals", "blocks"
+  minutesPlayed?: number;
+  expectedMinutes?: number;
+  statType?: string;
+  // New v2 fields (all optional for backward compatibility)
+  scoreDifferential?: number;   // abs(homeScore - awayScore)
+  period?: number;              // current period (1-4, 5+ OT)
+  personalFouls?: number;       // player's PFs this game (NBA)
+  seasonAverage?: number;       // per-stat-type season avg
+  usagePercentage?: number;     // from BDL advanced stats (0-100)
+  gamePace?: number;            // possessions per 48 min
+  sport?: "nba" | "nfl";
 }
 
 export interface EdgeResult {
@@ -79,8 +76,180 @@ export interface EdgeResult {
     dataScarcity: number;
     gameTiming: number;
     variancePenalty: number;
+    bayesianProjection: number;
+    blowoutFactor: number;
+    usageMultiplier: number;
+    gamePaceMultiplier: number;
+    poissonConfidence: number;
+    foulTroubleReduction: number;
+    effectiveExpectedMinutes: number;
   };
 }
+
+// ============ Helper Functions ============
+
+/**
+ * Poisson CDF: P(X <= k) for Poisson distribution with rate lambda.
+ * Uses iterative computation to avoid factorial overflow.
+ */
+function poissonCDF(k: number, lambda: number): number {
+  if (lambda <= 0) return 1;
+  let sum = 0;
+  let term = Math.exp(-lambda);
+  for (let i = 0; i <= Math.floor(k); i++) {
+    sum += term;
+    term *= lambda / (i + 1);
+  }
+  return Math.min(1, sum);
+}
+
+/**
+ * Poisson confidence multiplier for rare events.
+ * Computes P(remaining events >= needed to hit line) and scales to [0.3, 1.5].
+ */
+function getPoissonConfidence(
+  currentValue: number,
+  line: number,
+  playerProgress: number,
+  statType?: string,
+): number {
+  if (!statType || !POISSON_STAT_TYPES.has(statType)) return 1.0;
+  if (playerProgress <= 0 || playerProgress >= 1) return 1.0;
+
+  const remaining = Math.max(0, line - currentValue);
+  const remainingProgress = 1 - playerProgress;
+
+  // Estimate expected remaining events based on current pace
+  const currentRate = playerProgress > 0.05 ? currentValue / playerProgress : 0;
+  const expectedRemaining = currentRate * remainingProgress;
+
+  if (expectedRemaining <= 0 && remaining > 0) return 0.3;
+  if (remaining <= 0) return 1.5;
+
+  // P(X >= remaining) = 1 - P(X <= remaining - 1)
+  const pOver = 1 - poissonCDF(remaining - 1, expectedRemaining);
+
+  // Scale to confidence multiplier: P(over) * 2.0, clamped to [0.3, 1.5]
+  return Math.max(0.3, Math.min(1.5, pOver * 2.0));
+}
+
+/**
+ * Blowout factor: reduces effective expected minutes when game is a blowout.
+ * Returns multiplier on expected minutes (1.0 = no reduction).
+ */
+function getBlowoutFactor(
+  scoreDifferential?: number,
+  period?: number,
+): number {
+  if (scoreDifferential === undefined || period === undefined) return 1.0;
+
+  // Q3+ (period >= 3)
+  if (period >= 3) {
+    if (scoreDifferential > 25) return 0.30; // 70% reduction
+    if (scoreDifferential > 20) return 0.60; // 40% reduction
+  }
+
+  // Q4 (period >= 4) — less extreme leads still matter
+  if (period >= 4) {
+    if (scoreDifferential > 15) return 0.50; // 50% reduction
+  }
+
+  return 1.0;
+}
+
+/**
+ * Foul trouble reduction: reduces effective expected minutes for players in foul trouble.
+ * NBA only — returns multiplier on expected minutes (1.0 = no reduction).
+ */
+function getFoulTroubleReduction(
+  personalFouls?: number,
+  period?: number,
+  sport?: "nba" | "nfl",
+): number {
+  if (sport !== "nba" || personalFouls === undefined || period === undefined) return 1.0;
+
+  // Before Q4 (period < 4)
+  if (period < 4) {
+    if (personalFouls >= 5) return 0.50; // 50% reduction
+    if (personalFouls >= 4) return 0.75; // 25% reduction
+  }
+
+  return 1.0;
+}
+
+/**
+ * Bayesian pace projection: blends season average with current pace.
+ * Falls back to linear extrapolation if no season average provided.
+ */
+function getBayesianProjection(
+  currentValue: number,
+  playerProgress: number,
+  minutesPlayed: number | undefined,
+  seasonAverage?: number,
+): number {
+  const currentPace = playerProgress > 0 ? currentValue / playerProgress : 0;
+
+  if (seasonAverage === undefined || seasonAverage <= 0) {
+    return currentPace;
+  }
+
+  // Evidence weight scales with minutes played (12 min = full weight of 1 evidence unit)
+  const evidenceWeight = (minutesPlayed ?? 0) / 12;
+  const priorWeight = 2.0;
+
+  return (priorWeight * seasonAverage + evidenceWeight * currentPace) / (priorWeight + evidenceWeight);
+}
+
+/**
+ * Sigmoid dampening: replaces linear dampening fade.
+ * Returns a value from ~0 (heavy dampening) to ~1 (no dampening).
+ * Transition centered at 40% game progress.
+ */
+function getSigmoidDampening(
+  baseDampening: number,
+  playerProgress: number,
+): number {
+  const sigmoid = 1 / (1 + Math.exp(-10 * (playerProgress - 0.4)));
+  // At progress=0: sigmoid≈0, so dampening = baseDampening (full)
+  // At progress=1: sigmoid≈1, so dampening = 1.0 (none)
+  return 1 + (baseDampening - 1) * (1 - sigmoid);
+}
+
+/**
+ * Exponential game timing: early-game opportunities are more valuable.
+ * Decays from 1.0 to 0.4 as game progresses (vs linear 1.0→0.5 in v1).
+ */
+function getExponentialGameTiming(playerProgress: number): number {
+  return 0.4 + 0.6 * Math.exp(-3 * playerProgress);
+}
+
+/**
+ * Usage rate multiplier: higher usage = more opportunity to hit overs.
+ * NBA only, defaults to 1.0 when not available.
+ */
+function getUsageMultiplier(
+  usagePercentage?: number,
+  sport?: "nba" | "nfl",
+): number {
+  if (sport !== "nba" || usagePercentage === undefined) return 1.0;
+  // Scale: 0% usage → 0.7x, 100% usage → 2.2x
+  return 0.7 + (usagePercentage / 100) * 1.5;
+}
+
+/**
+ * Game pace normalization: faster games = more possessions = more opportunity.
+ * NBA only, defaults to 1.0 when not available.
+ * League average pace ~100 possessions/48min.
+ */
+function getGamePaceMultiplier(
+  gamePace?: number,
+  sport?: "nba" | "nfl",
+): number {
+  if (sport !== "nba" || gamePace === undefined) return 1.0;
+  return gamePace / 100;
+}
+
+// ============ Main Algorithm ============
 
 export function calculateEdgeScore(input: EdgeInput): EdgeResult {
   const {
@@ -93,58 +262,80 @@ export function calculateEdgeScore(input: EdgeInput): EdgeResult {
     minutesPlayed,
     expectedMinutes,
     statType,
+    scoreDifferential,
+    period,
+    personalFouls,
+    seasonAverage,
+    usagePercentage,
+    gamePace,
+    sport,
   } = input;
 
   // Avoid division by zero
   const line = Math.max(pregameLine, 0.1);
 
-  // Calculate player progress - prefer minutes-based if available
+  // 1. Effective Expected Minutes — blowout + foul trouble reduce projected time
+  const blowoutFactor = getBlowoutFactor(scoreDifferential, period);
+  const foulTroubleReduction = getFoulTroubleReduction(personalFouls, period, sport);
+  const minutesReduction = Math.min(blowoutFactor, foulTroubleReduction);
+  const effectiveExpectedMinutes = (expectedMinutes ?? 0) * minutesReduction;
+
+  // 2. Player Progress — prefer minutes-based if available
   let playerProgress: number;
-  if (minutesPlayed !== undefined && expectedMinutes && expectedMinutes > 0) {
-    // Minutes-based progress: how much of their expected minutes they've played
+  if (minutesPlayed !== undefined && effectiveExpectedMinutes > 0) {
+    playerProgress = Math.max(minutesPlayed / effectiveExpectedMinutes, 0.01);
+  } else if (minutesPlayed !== undefined && expectedMinutes && expectedMinutes > 0) {
+    // Fallback to original expected minutes if no reduction applies
     playerProgress = Math.max(minutesPlayed / expectedMinutes, 0.01);
   } else {
-    // Fallback to game elapsed percentage
     playerProgress = Math.max(gameElapsedPercent, 1) / 100;
   }
 
-  // Calculate projected pace (what they're on pace for)
-  const pace = currentValue / playerProgress;
-  const projectedFinal = pace;
+  // 3. Bayesian Pace Projection
+  const bayesianProjection = getBayesianProjection(
+    currentValue, playerProgress, minutesPlayed, seasonAverage,
+  );
+  const pace = currentValue / Math.max(playerProgress, 0.01);
+  const projectedFinal = bayesianProjection;
 
-  // PACE_RATIO: How much ahead of the line they are, normalized
-  const paceRatio = pace / line;
+  // 4. Pace Ratio
+  const paceRatio = bayesianProjection / line;
 
-  // STAT_DAMPENING: Reduce noise from low-volume stats early in game
-  // - Early game: full dampening applied (don't trust 1 steal = pace for 5)
-  // - Late game: dampening fades as we have more real data
+  // 5. Sigmoid Dampening
   const baseDampening = statType ? (STAT_DAMPENING[statType] ?? 1.0) : 1.0;
-  const gameProgress = gameElapsedPercent / 100;
-  // Dampening scales from full effect (early) to minimal effect (late game)
-  // At 0% game: effectiveDampening = baseDampening
-  // At 100% game: effectiveDampening = 1.0 (no dampening)
-  const statDampening = 1 + (baseDampening - 1) * (1 - gameProgress);
+  const statDampening = getSigmoidDampening(baseDampening, playerProgress);
   const adjustedPaceRatio = paceRatio / statDampening;
 
-  // DATA_SCARCITY: Higher multiplier for fewer games played
-  // Rookies get a boost here
+  // 6. Poisson Confidence (rare events only, 1.0 for volume stats)
+  const poissonConfidence = getPoissonConfidence(currentValue, line, playerProgress, statType);
+
+  // 7. Usage Multiplier (NBA only)
+  const usageMultiplier = getUsageMultiplier(usagePercentage, sport);
+
+  // 8. Game Pace Normalization (NBA only)
+  const gamePaceMultiplier = getGamePaceMultiplier(gamePace, sport);
+
+  // 9. Data Scarcity — unchanged from v1
   const baseScarcity = 1 + 1 / Math.sqrt(gamesPlayed + 1);
   const dataScarcity = isRookie ? baseScarcity * 1.2 : baseScarcity;
 
-  // GAME_TIMING: Early game opportunities are more valuable
-  // Decays from 1.0 to 0.5 as game progresses
-  const gameTiming = 1 - (gameElapsedPercent / 100) * 0.5;
+  // 10. Game Timing — exponential decay
+  const gameTiming = getExponentialGameTiming(playerProgress);
 
-  // VARIANCE_PENALTY: Reduce score for historically inconsistent players
+  // 11. Variance Penalty — unchanged from v1
   const variancePenalty = historicalStddev > 0 ? historicalStddev / line : 0;
 
-  // Calculate final edge score using adjusted pace ratio
-  const rawScore = adjustedPaceRatio * dataScarcity * gameTiming - variancePenalty;
+  // 12. Final score
+  const rawScore =
+    adjustedPaceRatio *
+    poissonConfidence *
+    usageMultiplier *
+    gamePaceMultiplier *
+    dataScarcity *
+    gameTiming -
+    variancePenalty;
 
-  // Clamp to reasonable range
   const edgeScore = Math.max(0, Math.min(rawScore, 10));
-
-  // Determine signal level
   const signal = getSignal(edgeScore);
 
   return {
@@ -159,6 +350,13 @@ export function calculateEdgeScore(input: EdgeInput): EdgeResult {
       dataScarcity,
       gameTiming,
       variancePenalty,
+      bayesianProjection,
+      blowoutFactor,
+      usageMultiplier,
+      gamePaceMultiplier,
+      poissonConfidence,
+      foulTroubleReduction,
+      effectiveExpectedMinutes,
     },
   };
 }

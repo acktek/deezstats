@@ -11,6 +11,9 @@ import {
   Database,
   RefreshCw,
   Timer,
+  Shield,
+  Activity,
+  Target,
 } from "lucide-react";
 
 export default function HowItWorksPage() {
@@ -78,10 +81,10 @@ export default function HowItWorksPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
               <p className="font-semibold text-red-600 dark:text-red-400 mb-2">
-                ❌ Old Way (Game Elapsed)
+                Old Way (Game Elapsed)
               </p>
               <p className="text-sm text-muted-foreground">
-                Player has 15 pts at halftime (50% elapsed) → Projects 30 pts
+                Player has 15 pts at halftime (50% elapsed) &rarr; Projects 30 pts
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Problem: Player already played 28 of their expected 34 minutes!
@@ -90,10 +93,10 @@ export default function HowItWorksPage() {
 
             <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
               <p className="font-semibold text-green-600 dark:text-green-400 mb-2">
-                ✓ DeezStats (Minutes Played)
+                DeezStats (Minutes Played)
               </p>
               <p className="text-sm text-muted-foreground">
-                Player has 15 pts with 28/34 min played (82%) → Projects 18 pts
+                Player has 15 pts with 28/34 min played (82%) &rarr; Projects 18 pts
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Accounts for actual playing time, not just game clock.
@@ -113,21 +116,21 @@ export default function HowItWorksPage() {
         </CardContent>
       </Card>
 
-      {/* The Edge Algorithm */}
+      {/* The Edge Algorithm v2 */}
       <Card className="card-leather">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-display text-xl">
             <Calculator className="h-5 w-5 text-primary" />
-            Edge Score Algorithm
+            Edge Score Algorithm v2
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="bg-muted/30 p-4 rounded-lg border border-border font-mono text-sm mb-6">
             <p className="text-primary font-semibold">
-              EDGE = (ADJUSTED_PACE_RATIO × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
+              EDGE = (BAYESIAN_PACE &times; POISSON &times; USAGE &times; PACE_NORM &times; DATA_SCARCITY &times; GAME_TIMING) - VARIANCE
             </p>
             <p className="text-muted-foreground text-xs mt-2">
-              where ADJUSTED_PACE_RATIO = PACE_RATIO / STAT_DAMPENING
+              where BAYESIAN_PACE = dampened projection / line, adjusted by sigmoid fade
             </p>
           </div>
 
@@ -135,16 +138,54 @@ export default function HowItWorksPage() {
             <div className="gold-accent">
               <h3 className="font-semibold flex items-center gap-2 mb-2">
                 <TrendingUp className="h-4 w-4 text-gold-500" />
-                Pace Ratio
+                Bayesian Pace Projection
               </h3>
               <p className="text-sm text-muted-foreground mb-2">
-                Measures how far ahead of the pregame line the player is tracking.
+                Blends the player&apos;s <strong>season average</strong> (prior) with their <strong>live pace</strong> (evidence).
+                Early in the game, the projection trusts the season average more. As minutes accumulate,
+                live performance takes over.
               </p>
               <code className="bg-muted px-2 py-1 rounded text-xs block">
-                player_progress = minutes_played / expected_minutes
+                projection = (prior &times; seasonAvg + evidence &times; livePace) / (prior + evidence)
               </code>
               <code className="bg-muted px-2 py-1 rounded text-xs block mt-1">
-                PACE_RATIO = (current_stats / player_progress) / pregame_line
+                evidence_weight = minutes_played / 12
+              </code>
+            </div>
+
+            <div className="gold-accent">
+              <h3 className="font-semibold flex items-center gap-2 mb-2">
+                <Target className="h-4 w-4 text-gold-500" />
+                Poisson Confidence (Rare Events)
+              </h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                For rare/discrete stats (steals, blocks, 3PM, touchdowns), uses Poisson probability
+                to estimate the real likelihood of hitting the over. Prevents false positives from
+                1-2 early events being extrapolated.
+              </p>
+              <code className="bg-muted px-2 py-1 rounded text-xs block">
+                P(over) = P(remaining_events &ge; needed_to_hit_line)
+              </code>
+              <p className="text-xs text-muted-foreground mt-1">
+                Multiplier range: 0.3x (unlikely) to 1.5x (very likely). Volume stats (points, yards) = 1.0x (neutral).
+              </p>
+            </div>
+
+            <div className="gold-accent">
+              <h3 className="font-semibold flex items-center gap-2 mb-2">
+                <Activity className="h-4 w-4 text-gold-500" />
+                Usage Rate &amp; Game Pace (NBA)
+              </h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                When available from advanced stats, factors in the player&apos;s usage rate and
+                the game&apos;s pace (possessions per 48 min). Higher usage = more opportunity.
+                Faster pace = more possessions for everyone.
+              </p>
+              <code className="bg-muted px-2 py-1 rounded text-xs block">
+                usage_mult = 0.7 + (usage_pct / 100) &times; 1.5
+              </code>
+              <code className="bg-muted px-2 py-1 rounded text-xs block mt-1">
+                pace_mult = game_pace / 100
               </code>
             </div>
 
@@ -164,13 +205,14 @@ export default function HowItWorksPage() {
             <div className="gold-accent">
               <h3 className="font-semibold flex items-center gap-2 mb-2">
                 <Clock className="h-4 w-4 text-gold-500" />
-                Game Timing
+                Exponential Game Timing
               </h3>
               <p className="text-sm text-muted-foreground mb-2">
-                Early-game edges are more valuable. Decays from 1.0 to 0.5 as game progresses.
+                Early-game edges are more valuable. Uses exponential decay instead of linear&mdash;the
+                value drops faster at the start and levels off, reflecting how books adjust.
               </p>
               <code className="bg-muted px-2 py-1 rounded text-xs">
-                GAME_TIMING = 1 - (game_elapsed% × 0.5)
+                GAME_TIMING = 0.4 + 0.6 &times; e^(-3 &times; progress)
               </code>
             </div>
 
@@ -190,29 +232,76 @@ export default function HowItWorksPage() {
         </CardContent>
       </Card>
 
-      {/* Stat-Type Dampening */}
+      {/* Context-Aware Adjustments */}
       <Card className="card-leather border-whiskey-400/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-display text-xl">
+            <Shield className="h-5 w-5 text-whiskey-500" />
+            Context-Aware Adjustments
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p>
+            The algorithm adjusts expected minutes based on game context to prevent
+            projecting stats a player won&apos;t have time to accumulate.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="font-semibold text-red-600 dark:text-red-400 mb-2">
+                Blowout Detection
+              </p>
+              <p className="text-sm text-muted-foreground mb-2">
+                When a game is a blowout, starters get pulled early.
+                Expected minutes are reduced accordingly.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                <li>Lead &gt; 25 in Q3+: 70% minutes reduction</li>
+                <li>Lead &gt; 20 in Q3+: 40% minutes reduction</li>
+                <li>Lead &gt; 15 in Q4: 50% minutes reduction</li>
+              </ul>
+            </div>
+
+            <div className="p-4 rounded-lg bg-whiskey-500/10 border border-whiskey-500/20">
+              <p className="font-semibold text-whiskey-600 dark:text-whiskey-400 mb-2">
+                Foul Trouble (NBA)
+              </p>
+              <p className="text-sm text-muted-foreground mb-2">
+                Players in foul trouble sit more. Expected minutes
+                are reduced to reflect this.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                <li>5+ fouls before Q4: 50% minutes reduction</li>
+                <li>4+ fouls before Q4: 25% minutes reduction</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stat-Type Dampening */}
+      <Card className="card-leather">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-display text-xl">
             <BarChart3 className="h-5 w-5 text-whiskey-500" />
-            Stat-Type Dampening (New)
+            Sigmoid Dampening by Stat Type
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p>
             Not all stats are created equal. A player with <strong>1 steal</strong> at
             20% game time projects to 5 steals&mdash;but that&apos;s often noise, not signal.
-            Low-volume stats (steals, blocks, 3PM) have high variance relative to their lines.
+            Low-volume stats have high variance relative to their lines.
           </p>
 
           <div className="bg-muted/30 p-4 rounded-lg border border-border">
             <p className="font-semibold text-whiskey-600 dark:text-whiskey-400 mb-2">
-              The Problem:
+              Sigmoid Fade:
             </p>
             <p className="text-sm text-muted-foreground">
-              A 1.5 steals line means 1 steal = 67% of the line. One lucky play early
-              can make the algorithm think they&apos;re on pace for a career game.
-              Compare to points: 1 point on a 22.5 line = 4% of the line.
+              Dampening uses a sigmoid curve centered at 40% game progress. Before 40%,
+              dampening is strong (don&apos;t trust early noise). After 40%, it fades rapidly
+              as real data accumulates. This is more natural than a linear fade.
             </p>
           </div>
 
@@ -224,37 +313,26 @@ export default function HowItWorksPage() {
                 <Badge variant="secondary">1.0x (baseline)</Badge>
               </div>
               <div className="flex justify-between p-2 rounded bg-muted/30 text-sm">
-                <span>Rebounds</span>
-                <Badge variant="secondary">1.15x</Badge>
+                <span>Assists</span>
+                <Badge variant="secondary">1.2x</Badge>
               </div>
               <div className="flex justify-between p-2 rounded bg-muted/30 text-sm">
-                <span>Assists</span>
-                <Badge variant="secondary">1.25x</Badge>
+                <span>Rebounds</span>
+                <Badge variant="secondary">1.3x</Badge>
               </div>
               <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
                 <span>3-Pointers</span>
-                <Badge variant="whiskey">1.6x</Badge>
+                <Badge variant="whiskey">2.0x</Badge>
               </div>
               <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
                 <span>Steals</span>
-                <Badge variant="whiskey">2.0x</Badge>
+                <Badge variant="whiskey">2.5x</Badge>
               </div>
               <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
                 <span>Blocks</span>
-                <Badge variant="whiskey">2.0x</Badge>
+                <Badge variant="whiskey">2.5x</Badge>
               </div>
             </div>
-          </div>
-
-          <div className="bg-forest-500/10 p-4 rounded-lg border border-forest-500/20">
-            <p className="font-semibold text-forest-600 dark:text-forest-400 mb-2">
-              Time-Based Fade:
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Dampening is strongest early in the game and fades as the game progresses.
-              At 0% elapsed: full dampening. At 100% elapsed: no dampening.
-              This means late-game projections for steals/blocks are trusted more.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -390,9 +468,10 @@ export default function HowItWorksPage() {
           <div>
             <h3 className="font-semibold text-sm mb-2">Data Flow</h3>
             <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-              <li><strong>BallDontLie API</strong> provides real-time stats + player props</li>
+              <li><strong>BallDontLie API</strong> provides real-time stats, player props, and advanced stats</li>
               <li><strong>Minutes tracking</strong> from live box scores</li>
-              <li><strong>Season averages</strong> for expected minutes per player</li>
+              <li><strong>Season averages</strong> for Bayesian prior + expected minutes</li>
+              <li><strong>Advanced stats</strong> (usage rate, pace) for NBA monitor view</li>
               <li><strong>Edge + Mateo calculations</strong> run every 10 seconds</li>
               <li><strong>Alerts</strong> trigger when thresholds crossed</li>
             </ol>
@@ -406,11 +485,17 @@ export default function HowItWorksPage() {
               <p className="text-xs text-muted-foreground">
                 Receiving/Rushing Yards, Receptions, Passing Yards, TDs
               </p>
+              <p className="text-xs text-muted-foreground mt-1 italic">
+                Blowout detection + Poisson (TDs) active. No usage/pace data.
+              </p>
             </div>
             <div>
               <p className="text-sm font-medium mb-2">Basketball</p>
               <p className="text-xs text-muted-foreground">
                 Points, Rebounds, Assists, 3PM, Steals, Blocks
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 italic">
+                Full algorithm: Bayesian, Poisson, blowout, foul trouble, usage, pace.
               </p>
             </div>
           </div>

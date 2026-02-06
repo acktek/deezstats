@@ -127,6 +127,9 @@ export async function GET(
             historicalStddev: dbPlayer?.historicalStddev || 0,
             isRookie: dbPlayer?.isRookie || false,
             statType: line.statType,
+            scoreDifferential: (game.homeScore ?? 0) && (game.awayScore ?? 0) ? Math.abs((game.homeScore ?? 0) - (game.awayScore ?? 0)) : undefined,
+            period: game.period ?? undefined,
+            sport: game.sport as "nba" | "nfl",
           });
 
           edges.push({

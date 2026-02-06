@@ -129,6 +129,10 @@ export async function POST(
                 historicalStddev: player.historicalStddev || 0,
                 isRookie: player.isRookie,
                 statType: line.statType,
+                scoreDifferential: bdlGame ? Math.abs(bdlGame.home_team_score - bdlGame.visitor_team_score) : undefined,
+                period: bdlGame?.period,
+                personalFouls: ps.pf || 0,
+                sport: "nba",
               });
 
               await db.insert(liveStats).values({
@@ -258,6 +262,9 @@ export async function POST(
                 historicalStddev: player.historicalStddev || 0,
                 isRookie: player.isRookie,
                 statType: line.statType,
+                scoreDifferential: bdlGame ? Math.abs(bdlGame.home_team_score - bdlGame.visitor_team_score) : undefined,
+                period: bdlGame?.quarter,
+                sport: "nfl",
               });
 
               await db.insert(liveStats).values({

@@ -170,6 +170,22 @@ export interface BDLNFLSeasonStats {
   receptions: number;
 }
 
+export interface BDLNBAAdvancedStats {
+  player_id: number;
+  game_id: number;
+  min: string;
+  usage_percentage: number;
+  pace: number;
+  offensive_rating: number;
+  defensive_rating: number;
+  net_rating: number;
+  assist_percentage: number;
+  rebound_percentage: number;
+  effective_field_goal_percentage: number;
+  true_shooting_percentage: number;
+  turnover_percentage: number;
+}
+
 interface APIResponse<T> {
   data: T[];
   meta?: {
@@ -305,6 +321,14 @@ export class BallDontLieClient {
     per_page?: number;
   }): Promise<APIResponse<BDLPlayer>> {
     return this.fetch<APIResponse<BDLPlayer>>("/players", params);
+  }
+
+  async getNBAAdvancedStats(params?: {
+    game_ids?: number[];
+    player_ids?: number[];
+    per_page?: number;
+  }): Promise<APIResponse<BDLNBAAdvancedStats>> {
+    return this.fetchNBA<APIResponse<BDLNBAAdvancedStats>>("/nba/v1/stats/advanced", params, true);
   }
 
   // ============ NFL Endpoints ============

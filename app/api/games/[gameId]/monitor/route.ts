@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { games, players as playersTable, playerLines, alerts } from "@/lib/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
+import type { BDLNBAAdvancedStats } from "@/lib/balldontlie/client";
 import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
 import { getDateRangeUTC, getCurrentSeasonUTC, getNBAHeadshotUrl, getTeamLogoUrl } from "@/lib/utils";
 
@@ -112,6 +113,7 @@ export async function GET(
       team: string;
       position: string;
       minutesPlayed: number;
+      personalFouls: number;
       stats: Record<string, number>;
     }>();
 
@@ -131,6 +133,9 @@ export async function GET(
 
     // Map to store player info from props (for pre-game when players aren't in box score)
     const propsPlayerInfoMap = new Map<string, { name: string; team: string; position: string }>();
+
+    // Map to store advanced stats (NBA in-progress games only)
+    const advancedStatsMap = new Map<string, { usagePercentage: number; pace: number }>();
 
     if (dbGame.sport === "nba") {
       try {
@@ -254,6 +259,7 @@ export async function GET(
                   team: ps.team.full_name,
                   position: ps.player.position || "N/A",
                   minutesPlayed: parseMinutes(ps.min),
+                  personalFouls: ps.pf || 0,
                   stats: {
                     points: ps.pts || 0,
                     rebounds: ps.reb || 0,
@@ -293,6 +299,21 @@ export async function GET(
                   }
                 });
                 await Promise.allSettled(avgPromises);
+              }
+
+              // Fetch advanced stats for in-progress games (usage rate, pace)
+              if (gameStatus === "in_progress") {
+                try {
+                  const advStats = await bdlClient.getNBAAdvancedStats({ game_ids: [bdlGameId], per_page: 100 });
+                  for (const as_ of advStats.data) {
+                    advancedStatsMap.set(String(as_.player_id), {
+                      usagePercentage: as_.usage_percentage || 0,
+                      pace: as_.pace || 0,
+                    });
+                  }
+                } catch {
+                  // Advanced stats may not be available - gracefully degrade
+                }
               }
             } catch (error) {
               console.error("Error fetching NBA stats:", error);
@@ -345,6 +366,7 @@ export async function GET(
                     team: existingPlayer.team || bdlInfo?.team || "Unknown",
                     position: existingPlayer.position || bdlInfo?.position || "N/A",
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 } else if (bdlInfo) {
@@ -354,6 +376,7 @@ export async function GET(
                     team: bdlInfo.team,
                     position: bdlInfo.position,
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 } else {
@@ -363,6 +386,7 @@ export async function GET(
                     team: "Unknown",
                     position: "N/A",
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 }
@@ -498,6 +522,7 @@ export async function GET(
                   team: ps.team.full_name,
                   position: ps.player.position_abbreviation || "N/A",
                   minutesPlayed: 0,
+                  personalFouls: 0,
                   stats: {
                     passing_yards: ps.passing_yards || 0,
                     rushing_yards: ps.rushing_yards || 0,
@@ -558,6 +583,7 @@ export async function GET(
                     team: existingPlayer.team || bdlInfo?.team || propInfo?.team || "Unknown",
                     position: existingPlayer.position || bdlInfo?.position || propInfo?.position || "N/A",
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 } else if (bdlInfo) {
@@ -567,6 +593,7 @@ export async function GET(
                     team: bdlInfo.team,
                     position: bdlInfo.position,
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 } else if (propInfo) {
@@ -576,6 +603,7 @@ export async function GET(
                     team: propInfo.team,
                     position: propInfo.position,
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 } else {
@@ -585,6 +613,7 @@ export async function GET(
                     team: "Unknown",
                     position: "N/A",
                     minutesPlayed: 0,
+                    personalFouls: 0,
                     stats: {},
                   });
                 }
@@ -664,6 +693,16 @@ export async function GET(
             const minutesPlayed = playerData.minutesPlayed;
             const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
 
+            // Get advanced stats for this player (NBA only)
+            const playerAdvStats = advancedStatsMap.get(bdlPlayerId);
+
+            // Get season average for this specific stat type
+            const seasonAvg = playerSeasonAvgs
+              ? (playerSeasonAvgs as Record<string, number>)[statType] ?? undefined
+              : undefined;
+
+            const scoreDifferential = Math.abs(homeScore - awayScore);
+
             const result = calculateEdgeScore({
               currentValue,
               gameElapsedPercent,
@@ -674,6 +713,13 @@ export async function GET(
               minutesPlayed,
               expectedMinutes,
               statType,
+              scoreDifferential,
+              period,
+              personalFouls: playerData.personalFouls,
+              seasonAverage: seasonAvg,
+              usagePercentage: playerAdvStats?.usagePercentage,
+              gamePace: playerAdvStats?.pace,
+              sport: dbGame.sport as "nba" | "nfl",
             });
             edgeScore = result.edgeScore;
             pace = result.pace;
@@ -722,6 +768,16 @@ export async function GET(
           const expectedMinutes = playerSeasonAvgs?.expectedMinutes;
 
           if (currentValue > 0 && primaryLine > 0 && gameElapsedPercent > 0) {
+            // Get advanced stats for this player (NBA only)
+            const playerAdvStats = advancedStatsMap.get(bdlPlayerId);
+
+            // Get season average for this specific stat type
+            const seasonAvgForStat = playerSeasonAvgs
+              ? (playerSeasonAvgs as Record<string, number>)[statType] ?? undefined
+              : undefined;
+
+            const scoreDiff = Math.abs(homeScore - awayScore);
+
             const result = calculateEdgeScore({
               currentValue,
               gameElapsedPercent,
@@ -732,6 +788,13 @@ export async function GET(
               minutesPlayed,
               expectedMinutes,
               statType,
+              scoreDifferential: scoreDiff,
+              period,
+              personalFouls: playerData.personalFouls,
+              seasonAverage: seasonAvgForStat,
+              usagePercentage: playerAdvStats?.usagePercentage,
+              gamePace: playerAdvStats?.pace,
+              sport: dbGame.sport as "nba" | "nfl",
             });
             edgeScore = result.edgeScore;
             pace = result.pace;

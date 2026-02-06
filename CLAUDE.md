@@ -86,20 +86,24 @@ Key enums: `sport` (nfl, nba, ncaab, ncaaf), `game_status` (scheduled, in_progre
 
 ## Core Algorithms
 
-### Edge Score (lib/algorithm/edge.ts)
+### Edge Score v2 (lib/algorithm/edge.ts)
 ```
-EDGE = (ADJUSTED_PACE_RATIO x DATA_SCARCITY x GAME_TIMING) - VARIANCE_PENALTY
+EDGE = (BAYESIAN_PACE × POISSON_CONFIDENCE × USAGE_MULT × PACE_NORM × DATA_SCARCITY × GAME_TIMING) - VARIANCE_PENALTY
 ```
-- **PACE_RATIO** = (current_stats / player_progress%) / pregame_line
-- **ADJUSTED_PACE_RATIO** = PACE_RATIO / STAT_DAMPENING (reduces noise for low-volume stats)
+- **BAYESIAN_PACE** = blends season avg (prior) with live pace (evidence), weighted by minutes played
+- **POISSON_CONFIDENCE** = P(over) for rare events (steals, blocks, 3PT, TDs), clamped [0.3, 1.5]
+- **USAGE_MULT** = 0.7 + (usagePct/100) * 1.5 (NBA only, from advanced stats)
+- **PACE_NORM** = gamePace / 100 (NBA only, from advanced stats)
 - **DATA_SCARCITY** = 1 + (1 / sqrt(games_played + 1)), with 20% rookie bonus
-- **GAME_TIMING** = 1 - (game_elapsed% x 0.5)
+- **GAME_TIMING** = 0.4 + 0.6 × e^(-3 × progress) (exponential decay)
 - **VARIANCE_PENALTY** = historical_stddev / pregame_line
-- Prefers minutes played / expected minutes over game elapsed % for player progress
+- **Blowout detection** reduces effective expected minutes (>25pt lead in Q3+ → 70% reduction)
+- **Foul trouble** reduces effective expected minutes (5 PF before Q4 → 50% reduction, NBA only)
+- **Sigmoid dampening** replaces linear fade (transition at 40% progress)
 - Signal thresholds: none (<1.5), monitor (1.5-2.0), good (2.0-3.0), strong (>3.0)
 
-### Stat-Type Dampening (fades as game progresses)
-- Points: 1.0x, Rebounds: 1.15x, Assists: 1.25x, 3PT: 1.6x, Steals/Blocks: 2.0x
+### Stat-Type Dampening (sigmoid fade)
+- Points: 1.0x, Rebounds: 1.3x, Assists: 1.2x, 3PT: 2.0x, Steals/Blocks: 2.5x
 
 ### Mateo Score (lib/algorithm/mateo.ts)
 ```
