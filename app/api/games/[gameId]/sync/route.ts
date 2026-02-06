@@ -112,11 +112,8 @@ export async function POST(
 
             const statValues: Record<string, number> = {
               points: ps.pts,
-              rebounds: ps.reb,
               assists: ps.ast,
               three_pointers: ps.fg3m,
-              steals: ps.stl,
-              blocks: ps.blk,
             };
 
             // Calculate edges for each line

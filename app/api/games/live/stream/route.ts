@@ -120,11 +120,8 @@ async function fetchGamesWithEdges(
 
                 const statValues: Record<string, number> = {
                   points: ps.pts,
-                  rebounds: ps.reb,
                   assists: ps.ast,
                   three_pointers: ps.fg3m,
-                  steals: ps.stl,
-                  blocks: ps.blk,
                 };
 
                 for (const line of lines) {

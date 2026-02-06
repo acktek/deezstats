@@ -25,11 +25,8 @@
 const STAT_DAMPENING: Record<string, number> = {
   // NBA
   points: 1.0,          // reliable accumulator
-  rebounds: 1.3,        // more bursty than assumed
   assists: 1.2,         // fairly steady for playmakers
   three_pointers: 2.0,  // hot shooting rarely sustains
-  steals: 2.5,          // Poisson events
-  blocks: 2.5,          // Poisson events
 
   // NFL
   passing_yards: 1.0,   // accumulates steadily
@@ -41,7 +38,7 @@ const STAT_DAMPENING: Record<string, number> = {
 
 /** Stat types that are rare/discrete events suitable for Poisson modeling */
 const POISSON_STAT_TYPES = new Set([
-  "steals", "blocks", "three_pointers", "touchdowns",
+  "three_pointers", "touchdowns",
 ]);
 
 export interface EdgeInput {
@@ -433,11 +430,8 @@ function formatStatType(statType: string): string {
     passing_yards: "Passing Yards",
     touchdowns: "Touchdowns",
     points: "Points",
-    rebounds: "Rebounds",
     assists: "Assists",
     three_pointers: "3-Pointers Made",
-    steals: "Steals",
-    blocks: "Blocks",
   };
   return labels[statType] || statType;
 }

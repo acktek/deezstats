@@ -159,7 +159,7 @@ export default function HowItWorksPage() {
                 Poisson Confidence (Rare Events)
               </h3>
               <p className="text-sm text-muted-foreground mb-2">
-                For rare/discrete stats (steals, blocks, 3PM, touchdowns), uses Poisson probability
+                For rare/discrete stats (3PM, touchdowns), uses Poisson probability
                 to estimate the real likelihood of hitting the over. Prevents false positives from
                 1-2 early events being extrapolated.
               </p>
@@ -289,8 +289,8 @@ export default function HowItWorksPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p>
-            Not all stats are created equal. A player with <strong>1 steal</strong> at
-            20% game time projects to 5 steals&mdash;but that&apos;s often noise, not signal.
+            Not all stats are created equal. A player with <strong>1 three-pointer</strong> at
+            20% game time projects to 5 threes&mdash;but that&apos;s often noise, not signal.
             Low-volume stats have high variance relative to their lines.
           </p>
 
@@ -316,21 +316,9 @@ export default function HowItWorksPage() {
                 <span>Assists</span>
                 <Badge variant="secondary">1.2x</Badge>
               </div>
-              <div className="flex justify-between p-2 rounded bg-muted/30 text-sm">
-                <span>Rebounds</span>
-                <Badge variant="secondary">1.3x</Badge>
-              </div>
               <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
                 <span>3-Pointers</span>
                 <Badge variant="whiskey">2.0x</Badge>
-              </div>
-              <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
-                <span>Steals</span>
-                <Badge variant="whiskey">2.5x</Badge>
-              </div>
-              <div className="flex justify-between p-2 rounded bg-whiskey-500/10 text-sm">
-                <span>Blocks</span>
-                <Badge variant="whiskey">2.5x</Badge>
               </div>
             </div>
           </div>

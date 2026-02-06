@@ -120,10 +120,7 @@ export async function GET(
     // Map to store season averages by player ID
     const seasonAveragesMap = new Map<string, {
       points: number;
-      rebounds: number;
       assists: number;
-      steals: number;
-      blocks: number;
       three_pointers?: number;
       expectedMinutes?: number;
       gamesPlayedThisSeason?: number;
@@ -201,11 +198,8 @@ export async function GET(
 
               const statTypeMap: Record<string, string> = {
                 points: "points",
-                rebounds: "rebounds",
                 assists: "assists",
                 threes: "three_pointers",
-                steals: "steals",
-                blocks: "blocks",
               };
 
               for (const prop of props.data) {
@@ -262,11 +256,8 @@ export async function GET(
                   personalFouls: ps.pf || 0,
                   stats: {
                     points: ps.pts || 0,
-                    rebounds: ps.reb || 0,
                     assists: ps.ast || 0,
                     three_pointers: ps.fg3m || 0,
-                    steals: ps.stl || 0,
-                    blocks: ps.blk || 0,
                   },
                 });
               }
@@ -286,10 +277,7 @@ export async function GET(
                       const avg = seasonAvgs.data[0];
                       seasonAveragesMap.set(String(avg.player_id), {
                         points: avg.pts || 0,
-                        rebounds: avg.reb || 0,
                         assists: avg.ast || 0,
-                        steals: avg.stl || 0,
-                        blocks: avg.blk || 0,
                         three_pointers: (avg as any).fg3m || 0,
                         expectedMinutes: parseMinutes(avg.min),
                         gamesPlayedThisSeason: avg.games_played || undefined,
@@ -420,10 +408,7 @@ export async function GET(
                       const avg = seasonAvgs.data[0];
                       seasonAveragesMap.set(String(avg.player_id), {
                         points: avg.pts || 0,
-                        rebounds: avg.reb || 0,
                         assists: avg.ast || 0,
-                        steals: avg.stl || 0,
-                        blocks: avg.blk || 0,
                         three_pointers: (avg as any).fg3m || 0,
                         expectedMinutes: parseMinutes(avg.min),
                         gamesPlayedThisSeason: avg.games_played || undefined,

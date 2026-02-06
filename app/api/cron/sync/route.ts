@@ -132,11 +132,8 @@ export async function GET(request: NextRequest) {
                 let currentValue = 0;
                 switch (line.statType) {
                   case "points": currentValue = ps.pts; break;
-                  case "rebounds": currentValue = ps.reb; break;
                   case "assists": currentValue = ps.ast; break;
                   case "three_pointers": currentValue = ps.fg3m; break;
-                  case "steals": currentValue = ps.stl; break;
-                  case "blocks": currentValue = ps.blk; break;
                 }
 
                 if (currentValue > 0) {
@@ -237,14 +234,11 @@ export async function GET(request: NextRequest) {
               }
 
               // Map prop type to our stat type
-              type StatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns" | "points" | "rebounds" | "assists" | "three_pointers" | "steals" | "blocks";
+              type StatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns" | "points" | "assists" | "three_pointers";
               const statTypeMap: Record<string, StatType> = {
                 points: "points",
-                rebounds: "rebounds",
                 assists: "assists",
                 threes: "three_pointers",
-                steals: "steals",
-                blocks: "blocks",
               };
               const statType = statTypeMap[prop.prop_type];
               if (!statType) continue; // Skip unknown stat types

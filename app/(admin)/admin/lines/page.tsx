@@ -64,11 +64,8 @@ const statTypes = [
   { value: "passing_yards", label: "Passing Yards" },
   { value: "touchdowns", label: "Touchdowns" },
   { value: "points", label: "Points" },
-  { value: "rebounds", label: "Rebounds" },
   { value: "assists", label: "Assists" },
   { value: "three_pointers", label: "3-Pointers Made" },
-  { value: "steals", label: "Steals" },
-  { value: "blocks", label: "Blocks" },
 ];
 
 export default function LinesPage() {

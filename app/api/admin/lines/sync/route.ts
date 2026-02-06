@@ -80,15 +80,12 @@ export async function POST() {
             }).where(eq(players.id, player.id));
           }
 
-          // Map prop type to our stat type
-          type StatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns" | "points" | "rebounds" | "assists" | "three_pointers" | "steals" | "blocks";
+          // Map prop type to our stat type (NBA: points, assists, 3PT only)
+          type StatType = "receiving_yards" | "rushing_yards" | "receptions" | "passing_yards" | "touchdowns" | "points" | "assists" | "three_pointers";
           const statTypeMap: Record<string, StatType> = {
             points: "points",
-            rebounds: "rebounds",
             assists: "assists",
             threes: "three_pointers",
-            steals: "steals",
-            blocks: "blocks",
           };
           const statType = statTypeMap[prop.prop_type];
           if (!statType) continue; // Skip unknown stat types

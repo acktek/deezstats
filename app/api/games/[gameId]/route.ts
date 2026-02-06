@@ -53,11 +53,8 @@ export async function GET(
               position: ps.player.position || "Unknown",
               stats: {
                 points: ps.pts,
-                rebounds: ps.reb,
                 assists: ps.ast,
                 three_pointers: ps.fg3m,
-                steals: ps.stl,
-                blocks: ps.blk,
               },
             });
           }
