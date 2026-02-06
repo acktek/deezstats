@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db, players } from "@/lib/db";
-import { desc } from "drizzle-orm";
+import { desc, like, eq } from "drizzle-orm";
+import { bdlClient } from "@/lib/balldontlie";
 
 export async function GET() {
   const session = await auth();
@@ -34,6 +35,103 @@ export async function GET() {
     console.error("Error fetching players:", error);
     return NextResponse.json(
       { error: "Failed to fetch players" },
+      { status: 500 }
+    );
+  }
+}
+
+// Fix all "Player #" entries by fetching real names from BDL API
+export async function PATCH() {
+  const session = await auth();
+
+  if (!session?.user || session.user.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const unknownPlayers = await db.query.players.findMany({
+      where: like(players.name, "Player #%"),
+    });
+
+    if (unknownPlayers.length === 0) {
+      return NextResponse.json({ fixed: 0, message: "No Player # entries found" });
+    }
+
+    let fixed = 0;
+    const errors: string[] = [];
+
+    // Split into NBA and NFL players
+    const nbaPlayers = unknownPlayers.filter(p => p.sport === "nba");
+    const nflPlayers = unknownPlayers.filter(p => p.sport === "nfl");
+
+    // Batch-fetch NBA players
+    if (nbaPlayers.length > 0) {
+      const nbaIds = nbaPlayers
+        .map(p => parseInt(p.espnId))
+        .filter(id => !isNaN(id));
+
+      if (nbaIds.length > 0) {
+        try {
+          const bdlPlayers = await bdlClient.getNBAPlayers({ player_ids: nbaIds, per_page: 100 });
+          const bdlMap = new Map(bdlPlayers.data.map(p => [String(p.id), p]));
+
+          for (const dbPlayer of nbaPlayers) {
+            const bdl = bdlMap.get(dbPlayer.espnId);
+            if (bdl) {
+              await db.update(players).set({
+                name: `${bdl.first_name} ${bdl.last_name}`,
+                team: bdl.team?.full_name || dbPlayer.team,
+                position: bdl.position || dbPlayer.position,
+                updatedAt: new Date(),
+              }).where(eq(players.id, dbPlayer.id));
+              fixed++;
+            }
+          }
+        } catch (err: any) {
+          errors.push(`NBA batch fetch: ${err.message}`);
+        }
+      }
+    }
+
+    // Batch-fetch NFL players
+    if (nflPlayers.length > 0) {
+      const nflIds = nflPlayers
+        .map(p => parseInt(p.espnId.replace("nfl-", "")))
+        .filter(id => !isNaN(id));
+
+      if (nflIds.length > 0) {
+        try {
+          const bdlPlayers = await bdlClient.getNFLPlayers({ player_ids: nflIds, per_page: 100 });
+          const bdlMap = new Map(bdlPlayers.data.map(p => [String(p.id), p]));
+
+          for (const dbPlayer of nflPlayers) {
+            const nflId = dbPlayer.espnId.replace("nfl-", "");
+            const bdl = bdlMap.get(nflId);
+            if (bdl) {
+              await db.update(players).set({
+                name: `${bdl.first_name} ${bdl.last_name}`,
+                team: bdl.team?.full_name || dbPlayer.team,
+                position: bdl.position_abbreviation || dbPlayer.position,
+                updatedAt: new Date(),
+              }).where(eq(players.id, dbPlayer.id));
+              fixed++;
+            }
+          }
+        } catch (err: any) {
+          errors.push(`NFL batch fetch: ${err.message}`);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      fixed,
+      total: unknownPlayers.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error("Error fixing player names:", error);
+    return NextResponse.json(
+      { error: "Failed to fix player names" },
       { status: 500 }
     );
   }
