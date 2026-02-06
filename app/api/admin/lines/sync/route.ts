@@ -29,6 +29,20 @@ export async function POST() {
         const bdlGameId = parseInt(game.espnId);
         const props = await bdlClient.getNBAPlayerProps({ game_id: bdlGameId });
 
+        // Batch-fetch NBA player details (V2 props don't include player object)
+        const propPlayerIds = [...new Set(props.data.map(p => extractPropPlayerId(p)).filter(id => id > 0))];
+        const bdlPlayerMap = new Map<number, any>();
+        if (propPlayerIds.length > 0) {
+          try {
+            const bdlPlayers = await bdlClient.getNBAPlayers({ player_ids: propPlayerIds, per_page: 100 });
+            for (const p of bdlPlayers.data) {
+              bdlPlayerMap.set(p.id, p);
+            }
+          } catch {
+            // Silently fail - will use prop.player or fallback
+          }
+        }
+
         for (const prop of props.data) {
           const propPlayerId = extractPropPlayerId(prop);
           const propLineValue = extractPropLine(prop);
@@ -39,8 +53,10 @@ export async function POST() {
             where: eq(players.espnId, String(propPlayerId)),
           });
 
+          const bdlPlayer = bdlPlayerMap.get(propPlayerId);
+          const p = bdlPlayer || prop.player as any;
+
           if (!player) {
-            const p = prop.player as any;
             const currentSeason = new Date().getFullYear();
             const [newPlayer] = await db
               .insert(players)
@@ -55,6 +71,13 @@ export async function POST() {
               })
               .returning();
             player = newPlayer;
+          } else if (player.name.startsWith("Player #") && p) {
+            await db.update(players).set({
+              name: `${p.first_name} ${p.last_name}`,
+              team: p.team?.full_name || player.team,
+              position: p.position || player.position,
+              updatedAt: new Date(),
+            }).where(eq(players.id, player.id));
           }
 
           // Map prop type to our stat type
@@ -125,8 +148,9 @@ export async function POST() {
             where: eq(players.espnId, `nfl-${nflPropPlayerId}`),
           });
 
+          const p = prop.player as any;
+
           if (!player) {
-            const p = prop.player as any;
             const nflIsRookie = p?.experience === "Rookie" || p?.experience === "1" || p?.experience === "";
             const [newPlayer] = await db
               .insert(players)
@@ -141,6 +165,13 @@ export async function POST() {
               })
               .returning();
             player = newPlayer;
+          } else if (player.name.startsWith("Player #") && p) {
+            await db.update(players).set({
+              name: `${p.first_name} ${p.last_name}`,
+              team: p.team?.full_name || player.team,
+              position: p.position_abbreviation || player.position,
+              updatedAt: new Date(),
+            }).where(eq(players.id, player.id));
           }
 
           const statTypeMap: Record<string, string> = {
