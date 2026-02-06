@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { games, players as playersTable, playerLines, alerts } from "@/lib/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { bdlClient } from "@/lib/balldontlie";
+import { bdlClient, extractPropLine, extractPropPlayerId } from "@/lib/balldontlie";
 import type { BDLNBAAdvancedStats } from "@/lib/balldontlie/client";
 import { calculateEdgeScore, calculateMateoScore } from "@/lib/algorithm";
 import { getDateRangeUTC, getCurrentSeasonUTC, getNBAHeadshotUrl, getTeamLogoUrl } from "@/lib/utils";
@@ -126,6 +126,7 @@ export async function GET(
       blocks: number;
       three_pointers?: number;
       expectedMinutes?: number;
+      gamesPlayedThisSeason?: number;
     }>();
 
     // Map to store betting lines fetched from API (playerId -> statType -> vendor lines array)
@@ -208,13 +209,12 @@ export async function GET(
               };
 
               for (const prop of props.data) {
-                // V2 API may use player_id directly, or nested player.id
-                const propData = prop as { player_id?: number; line_value?: number; prop_type: string; line?: number; vendor?: string };
-                const playerId = String(propData.player_id || prop.player?.id);
+                const propPlayerId = extractPropPlayerId(prop);
+                if (!propPlayerId) continue;
+                const playerId = String(propPlayerId);
                 const statType = statTypeMap[prop.prop_type] || prop.prop_type;
-                // V2 API uses line_value instead of line
-                const lineValue = parseFloat(String(propData.line_value)) || prop.line || 0;
-                const vendor = prop.vendor || (propData as any).vendor || "unknown";
+                const lineValue = extractPropLine(prop);
+                const vendor = prop.vendor || "unknown";
 
                 // Store player info from props for pre-game display
                 if (prop.player && !propsPlayerInfoMap.has(playerId)) {
@@ -292,6 +292,7 @@ export async function GET(
                         blocks: avg.blk || 0,
                         three_pointers: (avg as any).fg3m || 0,
                         expectedMinutes: parseMinutes(avg.min),
+                        gamesPlayedThisSeason: avg.games_played || undefined,
                       });
                     }
                   } catch {
@@ -299,6 +300,15 @@ export async function GET(
                   }
                 });
                 await Promise.allSettled(avgPromises);
+
+                // Update DB players with gamesPlayed from season averages (fire-and-forget)
+                for (const [bdlId, avgData] of seasonAveragesMap) {
+                  if (avgData.gamesPlayedThisSeason) {
+                    db.update(playersTable).set({
+                      gamesPlayed: avgData.gamesPlayedThisSeason,
+                    }).where(eq(playersTable.espnId, bdlId)).catch(() => {});
+                  }
+                }
               }
 
               // Fetch advanced stats for in-progress games (usage rate, pace)
@@ -416,6 +426,7 @@ export async function GET(
                         blocks: avg.blk || 0,
                         three_pointers: (avg as any).fg3m || 0,
                         expectedMinutes: parseMinutes(avg.min),
+                        gamesPlayedThisSeason: avg.games_played || undefined,
                       });
                     }
                   } catch {
@@ -423,6 +434,15 @@ export async function GET(
                   }
                 });
                 await Promise.allSettled(avgPromises);
+
+                // Update DB players with gamesPlayed from season averages (fire-and-forget)
+                for (const [bdlId, avgData] of seasonAveragesMap) {
+                  if (avgData.gamesPlayedThisSeason) {
+                    db.update(playersTable).set({
+                      gamesPlayed: avgData.gamesPlayedThisSeason,
+                    }).where(eq(playersTable.espnId, bdlId)).catch(() => {});
+                  }
+                }
               }
             }
           }
@@ -469,10 +489,13 @@ export async function GET(
               };
 
               for (const prop of props.data) {
-                const playerId = `nfl-${prop.player.id}`;
+                const nflPropPlayerId = extractPropPlayerId(prop);
+                if (!nflPropPlayerId) continue;
+                const playerId = `nfl-${nflPropPlayerId}`;
                 const statType = statTypeMap[prop.prop_type];
                 if (!statType) continue;
                 const vendor = prop.vendor || "unknown";
+                const nflLineValue = extractPropLine(prop);
 
                 // Store player info from props for pre-game display
                 if (prop.player && !propsPlayerInfoMap.has(playerId)) {
@@ -494,9 +517,9 @@ export async function GET(
                 const existingVendors = playerMap.get(statType)!;
                 const existingIdx = existingVendors.findIndex(v => v.vendor === vendor);
                 if (existingIdx >= 0) {
-                  existingVendors[existingIdx].line = prop.line;
+                  existingVendors[existingIdx].line = nflLineValue;
                 } else {
-                  existingVendors.push({ vendor, line: prop.line });
+                  existingVendors.push({ vendor, line: nflLineValue });
                 }
               }
             } catch (propsError) {
@@ -707,7 +730,7 @@ export async function GET(
               currentValue,
               gameElapsedPercent,
               pregameLine: primaryLine,
-              gamesPlayed: dbPlayer?.gamesPlayed || 10,
+              gamesPlayed: playerSeasonAvgs?.gamesPlayedThisSeason || dbPlayer?.gamesPlayed || 1,
               historicalStddev: dbPlayer?.historicalStddev || 0,
               isRookie: dbPlayer?.isRookie || false,
               minutesPlayed,
@@ -782,9 +805,9 @@ export async function GET(
               currentValue,
               gameElapsedPercent,
               pregameLine: primaryLine,
-              gamesPlayed: 10,
+              gamesPlayed: playerSeasonAvgs?.gamesPlayedThisSeason || 1,
               historicalStddev: 0,
-              isRookie: false,
+              isRookie: (playerSeasonAvgs?.gamesPlayedThisSeason || 0) <= 10,
               minutesPlayed,
               expectedMinutes,
               statType,

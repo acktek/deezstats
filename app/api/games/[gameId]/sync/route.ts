@@ -4,7 +4,7 @@ import { games, players, playerLines, liveStats, alerts } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm";
 import { bdlClient } from "@/lib/balldontlie";
 import { calculateEdgeScore, shouldAlert, generateAlertMessage } from "@/lib/algorithm";
-import { getDateRangeUTC } from "@/lib/utils";
+import { getDateRangeUTC, getCurrentSeasonUTC } from "@/lib/utils";
 
 export async function POST(
   request: NextRequest,
@@ -79,6 +79,7 @@ export async function POST(
             });
 
             if (!player) {
+              const currentSeason = getCurrentSeasonUTC();
               const [newPlayer] = await db.insert(players).values({
                 espnId: String(ps.player.id),
                 name: `${ps.player.first_name} ${ps.player.last_name}`,
@@ -86,13 +87,15 @@ export async function POST(
                 position: ps.player.position || "Unknown",
                 sport: "nba",
                 gamesPlayed: 1,
-                isRookie: false,
+                isRookie: ps.player.draft_year === currentSeason,
               }).returning();
               player = newPlayer;
             } else {
+              const currentSeason = getCurrentSeasonUTC();
               await db.update(players).set({
                 team: ps.team.full_name,
                 position: ps.player.position || player.position,
+                isRookie: ps.player.draft_year === currentSeason,
                 updatedAt: new Date(),
               }).where(eq(players.id, player.id));
             }
@@ -220,6 +223,8 @@ export async function POST(
             });
 
             if (!player) {
+              const nflExp = ps.player.experience;
+              const nflIsRookie = nflExp === "Rookie" || nflExp === "1" || nflExp === "";
               const [newPlayer] = await db.insert(players).values({
                 espnId: `nfl-${ps.player.id}`,
                 name: `${ps.player.first_name} ${ps.player.last_name}`,
@@ -227,7 +232,7 @@ export async function POST(
                 position: ps.player.position_abbreviation || "Unknown",
                 sport: "nfl",
                 gamesPlayed: 1,
-                isRookie: false,
+                isRookie: nflIsRookie,
               }).returning();
               player = newPlayer;
             }

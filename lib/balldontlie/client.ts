@@ -132,13 +132,40 @@ export interface BDLNFLGame {
 
 export interface BDLPlayerProp {
   id: number;
-  game: BDLGame | BDLNFLGame;
-  player: BDLPlayer | BDLNFLPlayer;
+  game?: BDLGame | BDLNFLGame;
+  game_id?: number;
+  player?: BDLPlayer | BDLNFLPlayer;
+  player_id?: number;
   prop_type: string;
-  line: number;
-  over_odds: number;
-  under_odds: number;
+  line?: number;
+  line_value?: string;
+  over_odds?: number;
+  under_odds?: number;
+  market?: { type: string; over_odds?: number; under_odds?: number; odds?: number };
   vendor: string;
+}
+
+/**
+ * Extract the line value from a BDL prop response.
+ * Handles both V1 (line: number) and V2 (line_value: string) formats.
+ */
+export function extractPropLine(prop: BDLPlayerProp): number {
+  if (prop.line_value !== undefined) {
+    const parsed = parseFloat(prop.line_value);
+    if (!isNaN(parsed)) return parsed;
+  }
+  if (prop.line !== undefined) return prop.line;
+  return 0;
+}
+
+/**
+ * Extract the player ID from a BDL prop response.
+ * Handles both V1 (player.id) and V2 (player_id) formats.
+ */
+export function extractPropPlayerId(prop: BDLPlayerProp): number {
+  if (prop.player_id !== undefined) return prop.player_id;
+  if (prop.player?.id !== undefined) return prop.player.id;
+  return 0;
 }
 
 export interface BDLSeasonAverage {

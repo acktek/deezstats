@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db, players, playerLines, games } from "@/lib/db";
 import { eq, and, or } from "drizzle-orm";
-import { bdlClient } from "@/lib/balldontlie";
+import { bdlClient, extractPropLine, extractPropPlayerId } from "@/lib/balldontlie";
 
 export async function POST() {
   const session = await auth();
@@ -30,23 +30,28 @@ export async function POST() {
         const props = await bdlClient.getNBAPlayerProps({ game_id: bdlGameId });
 
         for (const prop of props.data) {
+          const propPlayerId = extractPropPlayerId(prop);
+          const propLineValue = extractPropLine(prop);
+          if (!propPlayerId) continue;
+
           // Find or create player
           let player = await db.query.players.findFirst({
-            where: eq(players.espnId, String(prop.player.id)),
+            where: eq(players.espnId, String(propPlayerId)),
           });
 
           if (!player) {
             const p = prop.player as any;
+            const currentSeason = new Date().getFullYear();
             const [newPlayer] = await db
               .insert(players)
               .values({
-                espnId: String(prop.player.id),
-                name: `${p.first_name} ${p.last_name}`,
-                team: p.team?.full_name || "Unknown",
-                position: p.position || "Unknown",
+                espnId: String(propPlayerId),
+                name: p ? `${p.first_name} ${p.last_name}` : `Player #${propPlayerId}`,
+                team: p?.team?.full_name || "Unknown",
+                position: p?.position || "Unknown",
                 sport: "nba",
                 gamesPlayed: 1,
-                isRookie: false,
+                isRookie: p?.draft_year === currentSeason,
               })
               .returning();
             player = newPlayer;
@@ -80,7 +85,7 @@ export async function POST() {
             await db
               .update(playerLines)
               .set({
-                pregameLine: prop.line,
+                pregameLine: propLineValue,
                 source: prop.vendor,
               })
               .where(eq(playerLines.id, existingLine.id));
@@ -90,7 +95,7 @@ export async function POST() {
               playerId: player.id,
               gameId: game.id,
               statType,
-              pregameLine: prop.line,
+              pregameLine: propLineValue,
               vendor: propVendor,
               source: prop.vendor,
             });
@@ -111,23 +116,28 @@ export async function POST() {
         const props = await bdlClient.getNFLPlayerProps({ game_ids: [bdlGameId] });
 
         for (const prop of props.data) {
+          const nflPropPlayerId = extractPropPlayerId(prop);
+          const nflPropLineValue = extractPropLine(prop);
+          if (!nflPropPlayerId) continue;
+
           // Find or create player
           let player = await db.query.players.findFirst({
-            where: eq(players.espnId, `nfl-${prop.player.id}`),
+            where: eq(players.espnId, `nfl-${nflPropPlayerId}`),
           });
 
           if (!player) {
             const p = prop.player as any;
+            const nflIsRookie = p?.experience === "Rookie" || p?.experience === "1" || p?.experience === "";
             const [newPlayer] = await db
               .insert(players)
               .values({
-                espnId: `nfl-${prop.player.id}`,
-                name: `${p.first_name} ${p.last_name}`,
-                team: p.team?.full_name || "Unknown",
-                position: p.position_abbreviation || "Unknown",
+                espnId: `nfl-${nflPropPlayerId}`,
+                name: p ? `${p.first_name} ${p.last_name}` : `Player #${nflPropPlayerId}`,
+                team: p?.team?.full_name || "Unknown",
+                position: p?.position_abbreviation || "Unknown",
                 sport: "nfl",
                 gamesPlayed: 1,
-                isRookie: false,
+                isRookie: nflIsRookie,
               })
               .returning();
             player = newPlayer;
@@ -161,7 +171,7 @@ export async function POST() {
             await db
               .update(playerLines)
               .set({
-                pregameLine: prop.line,
+                pregameLine: nflPropLineValue,
                 source: prop.vendor,
               })
               .where(eq(playerLines.id, existingLine.id));
@@ -171,7 +181,7 @@ export async function POST() {
               playerId: player.id,
               gameId: game.id,
               statType,
-              pregameLine: prop.line,
+              pregameLine: nflPropLineValue,
               vendor: propVendor,
               source: prop.vendor,
             });
